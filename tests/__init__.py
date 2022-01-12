@@ -20,27 +20,3 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-"""errors.py.
-
-Exceptions for the ibson module.
-"""
-
-
-class BSONError(Exception):
-    """General exception for BSON errors."""
-
-
-class BSONEncodeError(BSONError):
-    """Exception raised while encoding a document to a byte stream."""
-
-
-class BSONDecodeError(BSONError):
-    """Exception raised while decoding the stream."""
-
-
-class InvalidBSONOpcode(BSONDecodeError):
-    """Exception denoting an invalid BSON opcode."""
-
-    def __init__(self, opcode):
-        msg = "Invalid opcode encountered: {}".format(opcode)
-        super(InvalidBSONOpcode, self).__init__(msg)

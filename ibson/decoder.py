@@ -51,56 +51,34 @@ no worse than what would be required anyway.
 import io
 import uuid
 import datetime
-from collections import namedtuple, deque
+from collections import deque
 
 # Local imports.
 import ibson.codec_util as util
 import ibson.errors as errors
 
-# element     ::=     "\x01" e_name double    64-bit binary floating point
-#     |   "\x02" e_name string    UTF-8 string
-#     |   "\x03" e_name document  Embedded document
-#     |   "\x04" e_name document  Array
-#     |   "\x05" e_name binary    Binary data
-#     |   "\x06" e_name   Undefined (value) — Deprecated
-#     |   "\x07" e_name (byte*12)     ObjectId
-#     |   "\x08" e_name "\x00"    Boolean "false"
-#     |   "\x08" e_name "\x01"    Boolean "true"
-#     |   "\x09" e_name int64     UTC datetime
-#     |   "\x0A" e_name   Null value
-#     |   "\x0B" e_name cstring cstring   Regular expression - The first cstring is the regex pattern, the second is the regex options string. Options are identified by characters, which must be stored in alphabetical order. Valid options are 'i' for case insensitive matching, 'm' for multiline matching, 'x' for verbose mode, 'l' to make \w, \W, etc. locale dependent, 's' for dotall mode ('.' matches everything), and 'u' to make \w, \W, etc. match unicode.
-#     |   "\x0C" e_name string (byte*12)  DBPointer — Deprecated
-#     |   "\x0D" e_name string    JavaScript code
-#     |   "\x0E" e_name string    Symbol. — Deprecated
-#     |   "\x0F" e_name code_w_s  JavaScript code w/ scope — Deprecated
-#     |   "\x10" e_name int32     32-bit integer
-#     |   "\x11" e_name uint64    Timestamp
-#     |   "\x12" e_name int64     64-bit integer
-#     |   "\x13" e_name decimal128    128-bit decimal floating point
-#     |   "\xFF" e_name Min key
-#     |   "\x7F" e_name Max key
 
-def parse_64bit_float(stm):
+def _parse_64bit_float(stm):
     buff = stm.read(util.DOUBLE_STRUCT.size)
     return util.DOUBLE_STRUCT.unpack(buff)[0]
 
 
-def parse_int32(stm):
+def _parse_int32(stm):
     buff = stm.read(util.INT32_STRUCT.size)
     return util.INT32_STRUCT.unpack(buff)[0]
 
 
-def parse_int64(stm):
+def _parse_int64(stm):
     buff = stm.read(util.INT64_STRUCT.size)
     return util.INT64_STRUCT.unpack(buff)[0]
 
 
-def parse_uint64(stm):
+def _parse_uint64(stm):
     buff = stm.read(util.UINT64_STRUCT.size)
     return util.UINT64_STRUCT.unpack(buff)[0]
 
 
-def parse_byte(stm):
+def _parse_byte(stm):
     buff = stm.read(util.BYTE_STRUCT.size)
     return util.BYTE_STRUCT.unpack(buff)[0]
 
@@ -112,7 +90,7 @@ def _scan_for_null_terminator(buff):
     return -1
 
 
-def parse_ename(stm, decode=True):
+def _parse_ename(stm, decode=True):
     """Parse out a C-string (null-terminated string).
 
     If 'decode=True' (default), then convert the parsed string into UTF-8
@@ -156,10 +134,10 @@ def parse_ename(stm, decode=True):
     return data
 
 
-def parse_utf8_string(stm):
+def _parse_utf8_string(stm):
     """Parse out a UTF-8 string from the stream."""
     buff = stm.read(util.INT32_STRUCT.size)
-    length, = util.INT32_STRUCT.unpack(buff)
+    length = util.INT32_STRUCT.unpack(buff)[0]
     # Read 'length' bytes.
     data = stm.read(length)
     # The last byte _should_ be the null-terminator.
@@ -169,7 +147,7 @@ def parse_utf8_string(stm):
     return data[:-1].decode('utf-8')
 
 
-def parse_bool(stm):
+def _parse_bool(stm):
     buff = stm.read(util.BYTE_STRUCT.size)
     if buff[0] == 0x00:
         return False
@@ -179,11 +157,11 @@ def parse_bool(stm):
     raise Exception("Invalid bool type parsed!")
 
 
-def parse_binary(stm):
+def _parse_binary(stm):
     buff = stm.read(util.INT32_STRUCT.size)
-    length, = util.INT32_STRUCT.unpack(buff)
+    length = util.INT32_STRUCT.unpack(buff)[0]
     buff = stm.read(util.BYTE_STRUCT.size)
-    subtype, = util.BYTE_STRUCT.unpack(buff)
+    subtype = util.BYTE_STRUCT.unpack(buff)[0]
 
     # Read exactly 'length' bytes after.
     data = stm.read(length)
@@ -194,44 +172,16 @@ def parse_binary(stm):
     return data
 
 
-def parse_null(stm):
+def _parse_null(stm):
     return None, 0
 
 
-def parse_utc_datetime(stm):
+def _parse_utc_datetime(stm):
     buff = stm.read(util.INT64_STRUCT.size)
-    utc_ms, = util.INT64_STRUCT.unpack(buff)
-    result = datetime.datetime.fromtimestamp(utc_ms / 1000.0)
+    utc_ms = util.INT64_STRUCT.unpack(buff)[0]
+    result = datetime.datetime.fromtimestamp(
+        utc_ms / 1000.0, tz=datetime.timezone.utc)
     return result
-
-
-def parse_datetime(stm):
-    return parse_utc_datetime(stm)
-
-
-ELEMENT_OPCODES = {
-    0x01: parse_64bit_float,
-    0x02: parse_utf8_string,
-    # 0x03: _parse_document,
-    # 0x04: _parse_array,
-    0x05: parse_binary,
-    # 0x06: _handle_undefined,
-    # 0x07: _parse_object_id,
-    0x08: parse_bool,
-    0x09: parse_utc_datetime,
-    0x0A: parse_null,
-    # 0x0B: _parse_regex,
-    # 0x0C: _parse_db_pointer,
-    # 0x0D: _parse_js_code,
-    # 0x0E: _parse_symbol,
-    # 0x0F: _parse_js_code_with_scope,
-    0x10: parse_int32,
-    0x11: parse_datetime,
-    0x12: parse_int64,
-    # 0x13: _parse_decimal128,
-    # 0xFF: _parse_min_key,
-    # 0x7F: _parse_max_key
-}
 
 
 class DecodeEvents(object):
@@ -258,9 +208,18 @@ class DecodeEvents(object):
     """Event that denotes to skip the current key."""
 
 
+BSON_MIN_OBJECT = object()
+"""Default object that is assumed when decoding the 'min key' BSON field."""
+
+
+BSON_MAX_OBJECT = object()
+"""Default object that is assumed when decoding the 'max key' BSON field."""
+
+
 class BSONScanner(object):
 
-    def __init__(self, min_key_object=None, max_key_object=None, null_object=None):
+    def __init__(self, min_key_object=BSON_MIN_OBJECT,
+                 max_key_object=BSON_MAX_OBJECT, null_object=None):
         # By default, initialize the opcode mapping here. Subclasses should
         # register this mapping using the helper call to:
         # - register_opcode(opcode, callback)
@@ -268,41 +227,45 @@ class BSONScanner(object):
         # By default, most of the common types are already implemented, and
         # this class's constructor arguments handle some common cases.
         self._opcode_mapping = {
-            0x01: parse_64bit_float,
-            0x02: parse_utf8_string,
-            # 0x03: _parse_document,
-            # 0x04: _parse_array,
-            0x05: self.scan_binary,
-            0x06: self.scan_undefined,
+            0x01: _parse_64bit_float,
+            0x02: _parse_utf8_string,
+            # 0x03: parse_document,
+            # 0x04: parse_array,
+            0x05: _parse_binary,
+            0x06: lambda args: None,
             # 0x07: _parse_object_id,
-            0x08: parse_bool,
-            0x09: parse_utc_datetime,
+            0x08: _parse_bool,
+            0x09: _parse_utc_datetime,
             # 0x0A implies 'NULL', so return the configured NULL object.
-            0x0A: lambda stm: null_object,
+            0x0A: lambda args: null_object,
             # 0x0B: _parse_regex,
             # 0x0C: _parse_db_pointer,
             # 0x0D: _parse_js_code,
             # 0x0E: _parse_symbol,
             # 0x0F: _parse_js_code_with_scope,
-            0x10: parse_int32,
-            0x11: parse_datetime,
-            0x12: parse_int64,
+            0x10: _parse_int32,
+            # 0x11: parse_datetime,
+            0x12: _parse_int64,
             # 0x13: _parse_decimal128,
             # Return the min/max objects for these opcodes.
-            0x7F: lambda stm: max_key_object,
-            0xFF: lambda stm: min_key_object,
+            0x7F: lambda args: max_key_object,
+            0xFF: lambda args: min_key_object,
         }
 
     def register_opcode(self, opcode, callback):
         """Register a custom callback to parse this opcode.
 
         NOTE: 'callback' is expected to have the signature:
-            callback(stm) -> result
+            callback(stm, skip=False) -> result
         """
+        # Let's ban using '0x00' as an opcode for now because this is used
+        # in various places to denote the 'null-terminator' character.
+        if opcode == 0x00:
+            raise errors.InvalidBSONOpcode(opcode)
         self._opcode_mapping[opcode] = callback
 
     def scan_binary(self, stm):
-        return parse_binary(stm)
+        return _parse_binary(stm)
 
     def iterdecode(self, stm):
         """Iterate over the given BSON stream and (incrementally) decode it.
@@ -314,7 +277,12 @@ class BSONScanner(object):
          - key: The key pertaining to this frame.
          - value: The parsed value
 
-        It is possible to request to "skip" decoding a frame by sending the
+        One reason to invoke this call is to avoid loading the entire BSON
+        document into memory when parsing it; traversing the document only
+        stores the state needed to continue the traversal, which makes this
+        more memory-efficient.
+
+`        It is possible to request to "skip" decoding a frame by sending the
         special DecodeEvents.SKIP_KEYS object back to this generator. In this
         case, it is NOT strictly guaranteed that the frame will be skipped!
         Rather, it is a hint to the generator that it can skip the next key if
@@ -329,7 +297,7 @@ class BSONScanner(object):
         fpos = stm.tell()
 
         # The first field in any BSON document is its length. Fetch that now.
-        length = parse_int32(stm)
+        length = _parse_int32(stm)
         # The root key is the empty key.
         curr_frame = util.DocumentFrame('', fpos, length, False)
 
@@ -348,18 +316,19 @@ class BSONScanner(object):
 
             # A 'frame' consists of:
             #   <opcode> + <null-terminated key> + <value>
-            # Parse that here.
-            opcode = parse_byte(stm)
+            opcode = _parse_byte(stm)
 
-            # If 'opcode' is zero, this implies the end of this document.
+            # An 'opcode' of 0x00 implies the end of the current document or
+            # array (meaning there is no null-terminated key), so handle that
+            # case first.
             if opcode == 0x00:
-                current_stack.pop()
+                frame = current_stack.pop()
                 client_req = (yield (
                     frame, frame.key, DecodeEvents.END_DOCUMENT))
                 continue
 
             # Parse the key for the next element.
-            key = parse_ename(stm)
+            key = _parse_ename(stm)
 
             # Check the 'nested document' case first.
             client_req = None
@@ -367,7 +336,7 @@ class BSONScanner(object):
                 nested_fpos = stm.tell()
                 # A nested array. Create a new DocumentFrame type and push it
                 # to the current stack.
-                length = parse_int32(stm)
+                length = _parse_int32(stm)
                 is_array = bool(opcode == 0x04)
                 if is_array:
                     result = DecodeEvents.NESTED_ARRAY
@@ -404,7 +373,9 @@ class BSONScanner(object):
     def process_opcode(self, opcode, stm, traversal_stk):
         """Process the given opcode and return the appropriate value.
 
-        The result of this operation depends on the opcode.
+        The result of this operation depends on the opcode, but this should
+        return the parsed object OR a special 'DecodeEvent' subclass flagging
+        a nested subdocument or array as appropriate.
         """
         callback = self._opcode_mapping.get(opcode)
         if not callback:
@@ -431,21 +402,37 @@ class BSONDecoder(BSONScanner):
             return self.load(stm)
 
     def load(self, stm):
-        generator = self.decode(stm)
+        generator = self.iterdecode(stm)
 
         frame = None
         for frame, key, val in generator:
             if val is DecodeEvents.NESTED_DOCUMENT:
                 frame.ext_data = dict()
+                continue
             elif val is DecodeEvents.NESTED_ARRAY:
                 frame.ext_data = []
+                continue
             elif val is DecodeEvents.END_DOCUMENT:
                 continue
-            else:
-                frame.ext_data[key] = val
-        if not frame:
-            raise BSONDecodeError('Invalid end state!')
 
-        if frame:
-            return frame.ext_data
-        return None
+            # Attach the parsed data to the frame.
+            if frame.is_array:
+                # Check that the 'key' for this array makes sense...
+                try:
+                    index = int(key)
+                    if index != len(frame.ext_data):
+                        raise Exception()
+                except Exception:
+                    raise errors.BSONDecodeError(
+                        'Invalid key for array: {}'.format(key))
+                else:
+                    frame.ext_data.append(val)
+            else:
+                # Use a standard dictionary assignment otherwise.
+                frame.ext_data[key] = val
+
+        # This should not happen, but might if there is some problem with an
+        # unwound frame stack.
+        if not frame:
+            raise errors.BSONDecodeError('Invalid end state!')
+        return frame.ext_data
