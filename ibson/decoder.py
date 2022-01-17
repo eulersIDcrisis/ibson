@@ -299,7 +299,7 @@ class BSONScanner(object):
         # The first field in any BSON document is its length. Fetch that now.
         length = _parse_int32(stm)
         # The root key is the empty key.
-        curr_frame = util.DocumentFrame('', fpos, length, False)
+        curr_frame = util.DocumentFrame('', fpos, False, length=length)
 
         # Initialize the stack with the root document.
         current_stack = deque()
@@ -354,7 +354,7 @@ class BSONScanner(object):
                 else:
                     # Create a new frame, with current_frame as the parent.
                     new_frame = util.DocumentFrame(
-                        key, nested_fpos, length, is_array, parent=frame
+                        key, nested_fpos, is_array, parent=frame
                     )
                     current_stack.append(new_frame)
                 continue

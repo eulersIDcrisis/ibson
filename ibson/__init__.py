@@ -24,21 +24,21 @@ from ibson.encoder import BSONEncoder
 from ibson.decoder import BSONDecoder
 
 
+_DEFAULT_ENCODER = BSONEncoder()
+_DEFAULT_DECODER = BSONDecoder()
+
+
 def dump(obj, stm):
-    encoder = BSONEncoder()
-    return encoder.dump(obj)
+    return _DEFAULT_ENCODER.dump(obj)
 
 
 def dumps(obj):
-    encoder = BSONEncoder()
-    return encoder.dumps(obj)
+    return _DEFAULT_ENCODER.dumps(obj)
 
 
 def load(stm):
-    encoder = BSONEncoder()
-    return encoder.load(stm)
+    return _DEFAULT_DECODER.load(stm)
 
 
 def loads(data):
-    decoder = BSONDecoder()
-    return decoder.loads(data)
+    return _DEFAULT_DECODER.loads(data)

@@ -33,6 +33,23 @@ class BSONError(Exception):
 class BSONEncodeError(BSONError):
     """Exception raised while encoding a document to a byte stream."""
 
+    def __init__(self, key, msg, *args, fpos=None):
+        if fpos:
+            msg = 'Encode error, key: {} fpos: {} -- {}'.format(
+                key, fpos, msg)
+        else:
+            msg = 'Encode error, key: {} -- {}'.format(key, msg)
+
+        super(BSONEncodeError, self).__init__(msg, *args)
+        self._key = key
+        self._fpos = fpos
+        self._msg = msg
+
+    @property
+    def key(self):
+        """Key this error pertains to (could be the empty string)."""
+        return self._key
+
 
 class BSONDecodeError(BSONError):
     """Exception raised while decoding the stream."""

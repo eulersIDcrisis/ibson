@@ -54,13 +54,12 @@ DOUBLE_STRUCT = struct.Struct('<d')
 
 class DocumentFrame(object):
 
-    def __init__(self, key, fpos, length, parent=None, is_array=False,
-                 data_itr=None, ext_data=None):
+    def __init__(self, key, fpos, parent=None, length=None, is_array=False,
+                 ext_data=None):
         self.parent = parent
         self.key = key
         self.fpos = fpos
         self.offset = fpos
         self.length = length
         self.is_array = is_array
-        self.data_itr = data_itr
         self.ext_data = ext_data
