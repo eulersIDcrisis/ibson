@@ -36,6 +36,10 @@ import ibson.codec_util as util
 import ibson.errors as errors
 
 
+_INT32_LOWERBOUND = -2 ** 31
+_INT32_UPPERBOUND = 2 ** 32 - 1
+
+
 def _format_key(key):
     if isinstance(key, (bytes, bytearray)):
         return key
@@ -228,16 +232,19 @@ class BSONEncoder(object):
     def write_value(self, key, val, current_stack, stm):
         # Handle each case.
         if val is None:
-            self.write_null(key, val, stm)
+            self.write_null(key, stm)
+        elif isinstance(val, bool):
+            self.write_bool(key, val, stm)
         elif isinstance(val, int):
             # Handle whether a 32 or 64-bit integer.
-            self.write_int32(key, val, stm)
+            if val < _INT32_LOWERBOUND or val > _INT32_UPPERBOUND:
+                self.write_int64(key, val, stm)
+            else:
+                self.write_int32(key, val, stm)
         elif isinstance(val, (float, decimal.Decimal)):
             self.write_float(key, float(val), stm)
         elif isinstance(val, datetime.datetime):
             self.write_datetime(key, val, stm)
-        elif isinstance(val, bool):
-            self.write_bool(key, val, stm)
         elif isinstance(val, str):
             self.write_string(key, val, stm)
         elif isinstance(val, uuid.UUID):
@@ -294,7 +301,7 @@ class BSONEncoder(object):
         # This should only really be called with 'str' types, but we'll
         # be generous for now.
         raw_str = val.encode('utf-8') if isinstance(val, str) else val
-        length = len(val) + 1  # Add one for the \x00 at the end.
+        length = len(raw_str) + 1  # Add one for the \x00 at the end.
         stm.write(util.INT32_STRUCT.pack(length))
         stm.write(raw_str)
         # Write the null-terminator character.
