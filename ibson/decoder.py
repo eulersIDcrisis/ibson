@@ -208,6 +208,52 @@ class DecodeEvents(object):
     """Event that denotes to skip the current key."""
 
 
+class DecoderFrame(object):
+
+    def __init__(self, key, fpos, parent=None, length=None, is_array=False):
+        self._key = key
+        self._starting_fpos = fpos
+        self._parent = parent
+        self._length = length
+        self._is_array = is_array
+        self._data = list() if is_array else dict()
+
+    def add_item(self, key, value):
+        if self.is_array:
+            self._data.append(value)
+        else:
+            self._data[key] = value
+
+    @property
+    def key(self):
+        """Return the key this frame pertains to."""
+        return self._key
+
+    @property
+    def starting_fpos(self):
+        """Return the starting position in the file for this frame."""
+        return self._starting_fpos
+
+    @property
+    def parent(self):
+        """Return the parent for this frame."""
+        return self._parent
+
+    @property
+    def length(self):
+        """Return the (expected) length of this frame."""
+        return self._length
+
+    @property
+    def is_array(self):
+        """Return whether the current frame pertains to an array or dict."""
+        return self._is_array
+
+    @property
+    def data(self):
+        return self._data
+
+
 BSON_MIN_OBJECT = object()
 """Default object that is assumed when decoding the 'min key' BSON field."""
 
@@ -229,8 +275,8 @@ class BSONScanner(object):
         self._opcode_mapping = {
             0x01: _parse_64bit_float,
             0x02: _parse_utf8_string,
-            # 0x03: parse_document,
-            # 0x04: parse_array,
+            # 0x03: _parse_document,
+            # 0x04: _parse_array,
             0x05: _parse_binary,
             0x06: lambda args: None,
             # 0x07: _parse_object_id,
@@ -273,7 +319,7 @@ class BSONScanner(object):
         This returns a generator that yields tuples of the form:
             (frame, key, value)
         where:
-         - frame: The current frame as a DocumentFrame.
+         - frame: The current frame as a DecoderFrame.
          - key: The key pertaining to this frame.
          - value: The parsed value
 
@@ -299,16 +345,14 @@ class BSONScanner(object):
         # The first field in any BSON document is its length. Fetch that now.
         length = _parse_int32(stm)
         # The root key is the empty key.
-        curr_frame = util.DocumentFrame('', fpos, False, length=length)
+        frame = DecoderFrame('', fpos, is_array=False, length=length)
 
         # Initialize the stack with the root document.
         current_stack = deque()
-        current_stack.append(curr_frame)
+        current_stack.append(frame)
 
         # Start with the first 'yield' for the entire document.
-        client_req = (yield (
-            current_stack[-1], '', DecodeEvents.NESTED_DOCUMENT
-        ))
+        client_req = yield frame.key, DecodeEvents.NESTED_DOCUMENT, frame
 
         while current_stack:
             # Peek the current stack frame, which is at the end of the stack.
@@ -324,7 +368,7 @@ class BSONScanner(object):
             if opcode == 0x00:
                 frame = current_stack.pop()
                 client_req = (yield (
-                    frame, frame.key, DecodeEvents.END_DOCUMENT))
+                    frame.key, DecodeEvents.END_DOCUMENT, frame))
                 continue
 
             # Parse the key for the next element.
@@ -347,15 +391,15 @@ class BSONScanner(object):
                 # responded with a request of "SKIP_KEY", then skip the key and
                 # do not bother parsing any of those frames; instead, seek past
                 # the perceived length of the document.
-                client_req = (yield (frame, key, result))
+                client_req = (yield (key, result, frame))
                 if client_req is DecodeEvents.SKIP_KEY:
                     # Seek ahead based on the parsed length.
                     stm.seek(length, 1)
                 else:
                     # Create a new frame, with current_frame as the parent.
-                    new_frame = util.DocumentFrame(
-                        key, nested_fpos, is_array, parent=frame
-                    )
+                    new_frame = DecoderFrame(
+                        key, nested_fpos, is_array=is_array, parent=frame,
+                        length=length)
                     current_stack.append(new_frame)
                 continue
 
@@ -368,7 +412,7 @@ class BSONScanner(object):
             # then 'client_req' will be 'None'.
             # If 'client_req' is something other than None, try and process a
             # few cases.
-            client_req = (yield (frame, key, result))
+            client_req = (yield (key, result, frame))
 
     def process_opcode(self, opcode, stm, traversal_stk):
         """Process the given opcode and return the appropriate value.
@@ -404,8 +448,7 @@ class BSONDecoder(BSONScanner):
     def load(self, stm):
         generator = self.iterdecode(stm)
 
-        frame = None
-        for frame, key, val in generator:
+        for key, val, frame in generator:
             if val is DecodeEvents.NESTED_DOCUMENT:
                 frame.ext_data = dict()
                 continue
@@ -413,26 +456,15 @@ class BSONDecoder(BSONScanner):
                 frame.ext_data = []
                 continue
             elif val is DecodeEvents.END_DOCUMENT:
+                if frame.parent:
+                    frame.parent.add_item(frame.key, frame.data)
                 continue
 
-            # Attach the parsed data to the frame.
-            if frame.is_array:
-                # Check that the 'key' for this array makes sense...
-                try:
-                    index = int(key)
-                    if index != len(frame.ext_data):
-                        raise Exception()
-                except Exception:
-                    raise errors.BSONDecodeError(
-                        'Invalid key for array: {}'.format(key))
-                else:
-                    frame.ext_data.append(val)
-            else:
-                # Use a standard dictionary assignment otherwise.
-                frame.ext_data[key] = val
+            # Otherwise, add the given data to the current frame.
+            frame.add_item(key, val)
 
         # This should not happen, but might if there is some problem with an
         # unwound frame stack.
         if not frame:
             raise errors.BSONDecodeError('Invalid end state!')
-        return frame.ext_data
+        return frame.data
