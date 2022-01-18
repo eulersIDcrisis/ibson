@@ -233,6 +233,8 @@ class BSONEncoder(object):
         # Handle each case.
         if val is None:
             self.write_null(key, stm)
+        # NOTE: Check against 'bool' BEFORE 'int'; otherwise, bool values might
+        # first compare as an int insteead.
         elif isinstance(val, bool):
             self.write_bool(key, val, stm)
         elif isinstance(val, int):
@@ -251,7 +253,6 @@ class BSONEncoder(object):
             self.write_uuid(key, val, stm)
         elif isinstance(val, (bytes, bytearray, memoryview)):
             self.write_binary(key, val, stm)
-        # Handle nested documents and arrays here.
         else:
             # TODO -- Check for any custom overrides.
             raise errors.BSONEncodeError(
