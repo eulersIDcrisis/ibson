@@ -50,9 +50,21 @@ class BSONEncodeError(BSONError):
         """Key this error pertains to (could be the empty string)."""
         return self._key
 
+    @property
+    def fpos(self):
+        """Return the position in the stream that the error pertains to.
+
+        NOTE: This can return None if the error does not pertain to the
+        stream position or if it otherwise could not be extracted.
+        """
+        return self._fpos
+
     def __str__(self):
         """Return this exception as a string."""
         msg = super(BSONEncodeError, self).__str__()
+        if self._fpos is not None:
+            return u'Encode key: {}, fpos: {} -- {}'.format(
+                self.key, self.fpos, msg)
         return u'Encode key: {} -- {}'.format(self.key, msg)
 
 

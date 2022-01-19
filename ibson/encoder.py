@@ -161,13 +161,17 @@ class BSONEncoder(object):
                 else:
                     self.write_value(key, val, frame, stm)
             except errors.BSONEncodeError as e:
+                # Update these exception types with the current stack. This
+                # helps make the message more understandable in a more general
+                # context.
                 e.update_with_stack(current_stack)
                 raise e
             except Exception as exc:
                 # Reraise the exception, but with some context about it.
-                new_exc = errors.BSONEncodeError(key, str(exc), fpos=stm.tell())
+                new_exc = errors.BSONEncodeError(
+                    key, str(exc), fpos=stm.tell())
                 new_exc.update_with_stack(current_stack)
-                raise new_exc
+                raise new_exc from exc
 
     def write_document(self, key, val, current_frame, stm):
         if not isinstance(val, abc.Mapping):

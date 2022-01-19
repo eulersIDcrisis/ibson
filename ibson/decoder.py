@@ -310,6 +310,11 @@ class BSONScanner(object):
             raise errors.InvalidBSONOpcode(opcode)
         self._opcode_mapping[opcode] = callback
 
+    def register_binary_subtype(self, subtype, callback):
+        """Register a custom callback to parse a custom binary type.
+        """
+        pass
+
     def scan_binary(self, stm):
         return _parse_binary(stm)
 
@@ -317,11 +322,11 @@ class BSONScanner(object):
         """Iterate over the given BSON stream and (incrementally) decode it.
 
         This returns a generator that yields tuples of the form:
-            (frame, key, value)
+            (key, value, frame)
         where:
-         - frame: The current frame as a DecoderFrame.
          - key: The key pertaining to this frame.
          - value: The parsed value
+         - frame: The current frame as a DecoderFrame.
 
         One reason to invoke this call is to avoid loading the entire BSON
         document into memory when parsing it; traversing the document only
