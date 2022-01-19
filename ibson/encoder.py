@@ -144,21 +144,30 @@ class BSONEncoder(object):
         stm.write(util.INT32_STRUCT.pack(0))
 
         for key, val, current_stack in self._encode_generator(initial_frame):
-            frame = current_stack[-1]
-            if isinstance(val, dict):
-                # This implies a nested document. Call 'write_document' to
-                # handle the stack appropriately, then continue.
-                new_frame = self.write_document(key, val, frame, stm)
-                # Send back this new frame to traverse.
-                current_stack.append(new_frame)
-            elif isinstance(val, (list, tuple)):
-                # This implies a nested array/list/tuple. For now, we are
-                # generous and will encode this as an array.
-                new_frame = self.write_array(key, val, frame, stm)
-                # Send back this new frame to traverse.
-                current_stack.append(new_frame)
-            else:
-                self.write_value(key, val, frame, stm)
+            try:
+                frame = current_stack[-1]
+                if isinstance(val, dict):
+                    # This implies a nested document. Call 'write_document' to
+                    # handle the stack appropriately, then continue.
+                    new_frame = self.write_document(key, val, frame, stm)
+                    # Send back this new frame to traverse.
+                    current_stack.append(new_frame)
+                elif isinstance(val, (list, tuple)):
+                    # This implies a nested array/list/tuple. For now, we are
+                    # generous and will encode this as an array.
+                    new_frame = self.write_array(key, val, frame, stm)
+                    # Send back this new frame to traverse.
+                    current_stack.append(new_frame)
+                else:
+                    self.write_value(key, val, frame, stm)
+            except errors.BSONEncodeError as e:
+                e.update_with_stack(current_stack)
+                raise e
+            except Exception as exc:
+                # Reraise the exception, but with some context about it.
+                new_exc = errors.BSONEncodeError(key, str(exc), fpos=stm.tell())
+                new_exc.update_with_stack(current_stack)
+                raise new_exc
 
     def write_document(self, key, val, current_frame, stm):
         if not isinstance(val, abc.Mapping):

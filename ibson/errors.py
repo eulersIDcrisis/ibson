@@ -34,21 +34,26 @@ class BSONEncodeError(BSONError):
     """Exception raised while encoding a document to a byte stream."""
 
     def __init__(self, key, msg, *args, fpos=None):
-        if fpos:
-            msg = 'Encode error, key: {} fpos: {} -- {}'.format(
-                key, fpos, msg)
-        else:
-            msg = 'Encode error, key: {} -- {}'.format(key, msg)
-
         super(BSONEncodeError, self).__init__(msg, *args)
         self._key = key
         self._fpos = fpos
         self._msg = msg
 
+    def update_with_stack(self, stk):
+        tentative_key = '.'.join([
+            frame.key.replace('.', '\\.') for frame in stk
+        ])
+        self._key = '{}.{}'.format(tentative_key, self._key)
+
     @property
     def key(self):
         """Key this error pertains to (could be the empty string)."""
         return self._key
+
+    def __str__(self):
+        """Return this exception as a string."""
+        msg = super(BSONEncodeError, self).__str__()
+        return u'Encode key: {} -- {}'.format(self.key, msg)
 
 
 class BSONDecodeError(BSONError):
