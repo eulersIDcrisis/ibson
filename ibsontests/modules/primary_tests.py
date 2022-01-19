@@ -27,6 +27,7 @@
 Unittests for encoding BSON documents.
 """
 import unittest
+import datetime
 # Main import
 import ibson
 
