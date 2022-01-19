@@ -4,9 +4,9 @@ BSON (Binary JSON) parsing library.
 
 ## Usage
 
-This library is designed to implement a basic BSON decoding library that
-behaves similarly to python's native JSON parsing library. In particular, this
-has expected usage:
+This library is designed to implement a basic BSON library that behaves
+similarly to python's native JSON parsing library. In particular, this has
+expected usage:
 ```python
 import ibson
 
@@ -45,12 +45,6 @@ new_obj == obj
 
 This library works by noting that the byte offset needed in a few places to
 (de)serialize BSON is already implicitly tracked in (seekable) streams via
-the call to: `fp.tell()`.
-
-Likewise, this can be serialized
-For encoding a BSON
-
-with the observation that the byte offset needed in a few
-places for the BSON (de)serialization can be implicitly tracked by the
-underlying stream.
-
+the call to: `fp.tell()`; instead of maintaining this value directly, the same
+information can be extracted internally when needed by calculating differences
+in these stream positions.

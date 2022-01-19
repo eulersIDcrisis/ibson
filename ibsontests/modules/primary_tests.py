@@ -27,6 +27,7 @@
 Unittests for encoding BSON documents.
 """
 import unittest
+# Main import
 import ibson
 
 
@@ -78,11 +79,12 @@ class BSONEncoderTests(unittest.TestCase):
     def test_utf8_string(self):
         # Test the full load.
         obj = dict(value=u'Ωhello')
-        actual = ibson.dumps(obj)
         expected = (
             b'\x18\x00\x00\x00\x02value\x00\x08\x00\x00\x00\xce\xa9hello\x00'
             b'\x00')
+        actual = ibson.dumps(obj)
         self.assertEqual(actual, expected)
+
 
     def test_nested_documents(self):
         obj = dict(key=dict(value='a'), key2='b')
