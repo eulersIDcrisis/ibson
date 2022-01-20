@@ -136,17 +136,21 @@ class BSONDecoderTests(unittest.TestCase):
         # Should be accurate to 7 decimals.
         self.assertAlmostEqual(3.1459, obj['value'])
 
-    @unittest.skip('Datetime needs special handling for now.')
     def test_datetime_field(self):
         # Test the full load.
         # dict(value=datetime.datetime)
-        data = b'\x14\x00\x00\x00\tvalue\x00\xb0\\\xcaS~\x01\x00\x00\x00'
-        # Corresponds to: January 13, 2022, 2:14:38 pm on PST.
-        utc_ts = 1642112078
+        data = b'\x14\x00\x00\x00\tvalue\x00\x87>\xafy~\x01\x00\x00\x00'
+        # Corresponds to: datetime.datetime(2022, 1, 20, 22, 50, 35, 15000)
+        # With UTC timezone.
+        utc_ms = 1642719035015
         expected = datetime.datetime.fromtimestamp(
-            utc_ts, datetime.timezone.utc)
+            utc_ms / 1000.0, tz=datetime.timezone.utc)
         obj = ibson.loads(data)
-        self.assertEqual(obj, dict(value=expected))
+        self.assertIn('value', obj)
+        self.assertEqual(set(obj.keys()), set(['value']))
+        # Compare the value a bit looser.
+        actual_dt = obj['value']
+        self.assertEqual(actual_dt, expected)
 
     def test_null(self):
         # Test the full load.

@@ -28,28 +28,35 @@ import unittest
 import argparse
 # Import the tests from the various modules here.
 from ibsontests.modules.primary_tests import BSONEncoderTests, BSONDecoderTests
+from ibsontests.modules.stress_tests import DeeplyNestedDocumentTests
+
 
 def run():
+    """Main test runner."""
     parser = argparse.ArgumentParser(description="Run the BSON unittests.")
-    parser.add_argument('--run-large-tests', action='store_true', help=(
+    parser.add_argument('--run-all', action='store_true', help=(
         "Include the tests that and take more resources and time to run."))
     parser.add_argument('-v', '--verbose', action='count', default=1,
                         help="Increase output verbosity.")
     args = parser.parse_args()
 
-    main_tests = [
-        BSONEncoderTests(),
-        BSONDecoderTests()
+    test_cases = [
+        BSONEncoderTests,
+        BSONDecoderTests
     ]
 
-    test_suite = unittest.TestSuite()
-    test_suite.addTests(main_tests)
-
-    if args.run_large_tests:
+    if args.run_all:
         # Add the 'long-running' tests here.
-        pass
+        test_cases.append(DeeplyNestedDocumentTests)
 
-    unittest.main(verbosity=args.verbose,)
+    loader = unittest.defaultTestLoader
+    test_suite = unittest.TestSuite()
+    for tc in test_cases:
+        tests = loader.loadTestsFromTestCase(tc)
+        test_suite.addTests(tests)
+
+    runner = unittest.TextTestRunner(verbosity=args.verbose)
+    runner.run(test_suite)
 
 
 if __name__ == '__main__':
