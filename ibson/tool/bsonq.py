@@ -12,3 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""bsonq.py.
+
+CLI BSON Query Tool.
+
+This tool is designed to emulate 'jq' but for BSON documents instead. This also
+supports validating BSON documents to see if they are compliant.
+"""
+import argparse
+
+
+def run():
+    parser = argparse.ArgumentParser(
+        description="Tool to print and query BSON documents.")
+
+    parser.parse_args()
+
+
+if __name__ == '__main__':
+    run()
