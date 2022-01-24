@@ -44,14 +44,21 @@ DOUBLE_STRUCT = struct.Struct('<d')
 """Struct to unpack a double (i.e. 64-bit float) in little-endian format."""
 
 
-class DocumentFrame(object):
+INT32_LOWERBOUND = -2 ** 31
+"""Lowerbound for an Int32 type."""
 
-    def __init__(self, key, fpos, parent=None, length=None, is_array=False,
-                 ext_data=None):
-        self.parent = parent
-        self.key = key
-        self.fpos = fpos
-        self.offset = fpos
-        self.length = length
-        self.is_array = is_array
-        self.ext_data = ext_data
+
+INT32_UPPERBOUND = 2 ** 31 - 1
+"""Upperbound for an Int32 type."""
+
+
+INT64_LOWERBOUND = -2 ** 63
+"""Lowerbound for an Int64 type."""
+
+
+INT64_UPPERBOUND = 2 ** 63
+"""Upperbound for an Int64 type."""
+
+
+UINT32_UPPERBOUND = 2 ** 32 - 1
+"""Upperbound for a UInt32 type."""

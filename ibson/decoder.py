@@ -88,31 +88,13 @@ def _parse_ename(stm, decode=True):
     If 'decode=True' (default), then convert the parsed string into UTF-8
     automatically.
     """
-    index = -1
     data = bytearray()
     while True:
         # Peek the data, but do not (yet) consume it.
-        peeked_data = stm.read(1024)
-        # Scan for the null-terminator.
-        index = _scan_for_null_terminator(peeked_data)
-        # Did not find the null terminator. Add this data to the current
-        # buffer, update the stream's position, then run through again.
-        if index < 0:
-            # Should be the same data read by 'stm.peek()'.
-            data.extend(peeked_data)
-            continue
-        # Otherwise, only read in the amount of data required to get to the
-        # null-terminator.
-        data.extend(peeked_data[:index + 1])
-
-        # Seek back the number of bytes we did not end up reading.
-        stm.seek(index - len(peeked_data) + 1, 1)
-        break
-
-    # The last character _should_ be the null-terminator. Assert that this is
-    # so, but then remove the character when decoding.
-    assert data[-1] == 0x00
-    data.pop()
+        raw_data = stm.read(1)
+        if raw_data == b'\x00':
+            break
+        data.extend(raw_data)
 
     # 'index' stores the index of the null terminator, or -1 if it was not
     # found. Realistically, this should be positive to include at least one
@@ -325,7 +307,7 @@ class BSONScanner(object):
         stores the state needed to continue the traversal, which makes this
         more memory-efficient.
 
-`        It is possible to request to "skip" decoding a frame by sending the
+        It is possible to request to "skip" decoding a frame by sending the
         special DecodeEvents.SKIP_KEYS object back to this generator. In this
         case, it is NOT strictly guaranteed that the frame will be skipped!
         Rather, it is a hint to the generator that it can skip the next key if
@@ -439,10 +421,15 @@ class BSONDecoder(BSONScanner):
     """
 
     def loads(self, data):
+        """Load the BSON document from the given bytes-like object."""
         with io.BytesIO(data) as stm:
             return self.load(stm)
 
     def load(self, stm):
+        """Load the BSON document from the given (bytes-like) stream.
+
+        NOTE: The underlying stream should be seekable if possible.
+        """
         generator = self.iterdecode(stm)
 
         for key, val, frame in generator:

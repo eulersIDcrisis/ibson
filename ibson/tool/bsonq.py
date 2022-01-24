@@ -16,8 +16,8 @@
 
 CLI BSON Query Tool.
 
-This tool is designed to emulate 'jq' but for BSON documents instead. This also
-supports validating BSON documents to see if they are compliant.
+This tool is designed to loosely emulate 'jq' but for BSON documents instead.
+This also supports validating BSON documents to see if they are compliant.
 """
 import argparse
 

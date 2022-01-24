@@ -26,10 +26,7 @@ import collections.abc as abc
 # Local imports.
 import ibson.codec_util as util
 import ibson.errors as errors
-
-
-_INT32_LOWERBOUND = -2 ** 31
-_INT32_UPPERBOUND = 2 ** 32 - 1
+import ibson.types as types
 
 
 def _format_key(key):
@@ -43,6 +40,20 @@ def _format_key(key):
 
 
 class EncoderFrame(object):
+    """Object storing various information while exporting an object.
+
+    This stores:
+     - key: Immediate key this object is referenced by in its parent. (The
+            root document has the empty key).
+     - starting_fpos: Position in the file where this frame started. For
+            array/dict types, this is the position in the file where the
+            "length" parameter is set.
+     - parent: Parent frame (or None if the root element)
+     - object_iterator: Iterator over the contents of this current frame.
+            This should return tuples of: (key, value)
+     - on_done_callback: Callback that is invoked when the frame is finally
+            popped off of the traversal stack.
+    """
 
     def __init__(self, key, fpos, parent=None, object_iterator=None,
                  on_done_callback=None):
@@ -235,7 +246,8 @@ class BSONEncoder(object):
         return frame
 
     def write_value(self, key, val, current_stack, stm):
-        # Handle each case.
+        # NOTE: The order of these checks does matter since some types can be
+        # cast to some of the other types (i.e. bools to ints, etc.).
         if val is None:
             self.write_null(key, stm)
         # NOTE: Check against 'bool' BEFORE 'int'; otherwise, bool values might
@@ -243,8 +255,14 @@ class BSONEncoder(object):
         elif isinstance(val, bool):
             self.write_bool(key, val, stm)
         elif isinstance(val, int):
-            # Handle whether a 32 or 64-bit integer.
-            if val < _INT32_LOWERBOUND or val > _INT32_UPPERBOUND:
+            if isinstance(val, types.Int32):
+                self.write_int32(key, val, stm)
+            elif isinstance(val, types.Int64):
+                self.write_int64(key, val, stm)
+            # Handle ordinary integers by casting down to the smallest type
+            # that can contain them. If the caller wanted an explicit type,
+            # they can use the explicit types given above.
+            elif val < util.INT32_LOWERBOUND or val > util.INT32_UPPERBOUND:
                 self.write_int64(key, val, stm)
             else:
                 self.write_int32(key, val, stm)
