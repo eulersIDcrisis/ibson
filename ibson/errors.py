@@ -70,3 +70,4 @@ class InvalidBSONOpcode(BSONDecodeError):
     def __init__(self, opcode):
         msg = "Invalid opcode encountered: {}".format(opcode)
         super(InvalidBSONOpcode, self).__init__(msg)
+        self.opcode = opcode

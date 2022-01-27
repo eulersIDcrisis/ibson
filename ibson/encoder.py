@@ -113,6 +113,9 @@ def _write_length_for_frame(stm, frame):
 class BSONEncoder(object):
     """Encoder that writes python objects to a BSON byte stream."""
 
+    def __init__(self):
+        self._traverse_document_iterator = lambda val: iter(val.items())
+
     def dumps(self, obj):
         """Serialize the given object into a BSON byte stream."""
         with io.BytesIO() as stm:
@@ -182,8 +185,13 @@ class BSONEncoder(object):
                 key, 'Object is not of the proper type!')
 
         # Write out the 0x03 opcode and the key first.
-        stm.write(b'\x03')
-        self._write_raw_key(key, stm)
+        #
+        # NOTE: Skip this step if the key and the current frame implies that
+        # we are at the document root. This avoids the need to write out the
+        # opcode and the raw key, for otherwise the same operation.
+        if key or current_frame is not None:
+            stm.write(b'\x03')
+            self._write_raw_key(key, stm)
 
         # Register a new frame, to write the contents of this nested document.
         # This frame should _not_ include the opcode or the key as the start.
@@ -199,7 +207,7 @@ class BSONEncoder(object):
             # The external data attached to this frame should be the iterator
             # over the elements of this current document. If requested, this
             # could use an appropriate sorting algorithm.
-            object_iterator=iter(val.items()),
+            object_iterator=self._traverse_document_iterator(val),
             # Register this callback to invoke when exiting this frame.
             on_done_callback=partial(_write_length_for_frame, stm)
         )
@@ -282,30 +290,36 @@ class BSONEncoder(object):
                 key, 'Cannot encode object of type: {}'.format(type(val)))
 
     def write_int32(self, key, val, stm):
+        """Write out an Int32 to the stream with the given key and value."""
         stm.write(b'\x10')
         self._write_raw_key(key, stm)
         stm.write(util.INT32_STRUCT.pack(val))
 
     def write_int64(self, key, val, stm):
+        """Write out an Int64 to the stream with the given key and value."""
         stm.write(b'\x12')
         self._write_raw_key(key, stm)
         stm.write(util.INT64_STRUCT.pack(val))
 
     def write_float(self, key, val, stm):
+        """Write out a double to the stream with the given key and value."""
         stm.write(b'\x01')
         self._write_raw_key(key, stm)
         stm.write(util.DOUBLE_STRUCT.pack(val))
 
     def write_bool(self, key, val, stm):
+        """Write out a boolean to the stream with the given key and value."""
         stm.write(b'\x08')
         self._write_raw_key(key, stm)
         stm.write(b'\x01' if val else b'\x00')
 
     def write_null(self, key, stm):
+        """Write out NULL (None) to the stream with the given key."""
         stm.write(b'\x0A')
         self._write_raw_key(key, stm)
 
     def write_min_key(self, key, stm):
+        """Write out an Int32 to the stream with the given key and value."""
         stm.write(b'\xFF')
         self._write_raw_key(key, stm)
 
@@ -314,17 +328,20 @@ class BSONEncoder(object):
         self._write_raw_key(key, stm)
 
     def write_datetime(self, key, dt, stm):
+        """Write out a datetime to the stream with the given key and value."""
         stm.write(b'\x09')
         self._write_raw_key(key, stm)
         utc_ts = int(1000 * dt.timestamp())
         stm.write(util.INT64_STRUCT.pack(utc_ts))
 
     def write_string(self, key, val, stm):
+        """Write out a (UTF-8) string to the stream with the given key."""
         stm.write(b'\x02')
         self._write_raw_key(key, stm)
         # This should only really be called with 'str' types, but we'll
         # be generous for now.
         raw_str = val.encode('utf-8') if isinstance(val, str) else val
+        # NOTE: The length is in bytes _not_ UTF-8 characters.
         length = len(raw_str) + 1  # Add one for the \x00 at the end.
         stm.write(util.INT32_STRUCT.pack(length))
         stm.write(raw_str)
@@ -332,6 +349,7 @@ class BSONEncoder(object):
         stm.write(b'\x00')
 
     def write_uuid(self, key, val, stm):
+        """Write out a UUID to the stream with the given key and value."""
         # UUIDs are written as a binary type, with a 0x04 subtype.
         stm.write(b'\x05')
         self._write_raw_key(key, stm)
@@ -343,12 +361,17 @@ class BSONEncoder(object):
         stm.write(b'\x04')
         stm.write(data)
 
-    def write_bytes(self, key, val, stm):
+    def write_bytes(self, key, val, stm, subtype=0):
+        """Write out the byte stream with the given key and value.
+
+        NOTE: This also permits writing out a custom binary subtype to denote
+        which type of binary stream this is. If not specified, this defaults
+        to 0, the default/generic subtype.
+        """
         stm.write(b'\x05')
         self._write_raw_key(key, stm)
         stm.write(util.INT32_STRUCT.pack(len(val)))
-        # 'Generic' binary subtype
-        stm.write(b'\x00')
+        stm.write(util.BYTE_STRUCT.pack(subtype))
         stm.write(val)
 
     def _write_raw_key(self, key, stm):

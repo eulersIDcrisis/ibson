@@ -16,21 +16,31 @@ from ibson.encoder import BSONEncoder
 from ibson.decoder import BSONDecoder
 
 
-_DEFAULT_ENCODER = BSONEncoder()
-_DEFAULT_DECODER = BSONDecoder()
-
-
 def dump(obj, stm):
-    return _DEFAULT_ENCODER.dump(obj)
+    """Write the object out to the given seekable binary stream.
+
+    NOTE: Any additional keyword arguments are passed to the underlying
+    BSONDecoder constructor.
+
+    Parameters
+    ----------
+    obj: dict
+        A dictionary object containing the contents to write out.
+    """
+    encoder = BSONEncoder()
+    return encoder.dump(obj, stm)
 
 
 def dumps(obj):
-    return _DEFAULT_ENCODER.dumps(obj)
+    encoder = BSONEncoder()
+    return encoder.dumps(obj)
 
 
 def load(stm):
-    return _DEFAULT_DECODER.load(stm)
+    decoder = BSONDecoder()
+    return decoder.load(stm)
 
 
 def loads(data):
-    return _DEFAULT_DECODER.loads(data)
+    decoder = BSONDecoder()
+    return decoder.loads(data)
