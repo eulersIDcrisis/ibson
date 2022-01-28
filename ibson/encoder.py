@@ -140,8 +140,23 @@ def _register_length(length_list, stm, frame):
 class BSONEncoder(object):
     """Encoder that writes python objects to a BSON byte stream."""
 
-    def __init__(self):
-        self._traverse_document_iterator = lambda val: iter(val.items())
+    def __init__(self, traversal_callback=None):
+        """Create an encoder for BSON documents.
+
+        Parameters
+        ----------
+        traversal_callback: (dict) -> Iterator[Any, Any] or None
+            Callback to invoke on a 'document' (dict type). Useful to set the
+            order that the items are serialized (if desired). If 'None', then
+            the encoder uses the equivalent of: 
+                lambda val: iter(val.items())
+        """
+        if traversal_callback is None:
+            self._traverse_document_iterator = lambda val: iter(val.items())
+        elif not callable(traversal_callback):
+            raise TypeError("'traversal_callback' should be callable!")
+        else:
+            self._traverse_document_iterator = traversal_callback
 
     def dumps(self, obj):
         """Serialize the given object into a BSON byte stream."""

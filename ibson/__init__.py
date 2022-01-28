@@ -16,23 +16,37 @@ from ibson.encoder import BSONEncoder
 from ibson.decoder import BSONDecoder
 
 
-def dump(obj, stm):
+def dump(obj, stm, /, **kwargs):
     """Write the object out to the given seekable binary stream.
 
     NOTE: Any additional keyword arguments are passed to the underlying
-    BSONDecoder constructor.
+    BSONEncoder constructor.
 
     Parameters
     ----------
     obj: dict
         A dictionary object containing the contents to write out.
     """
-    encoder = BSONEncoder()
+    encoder = BSONEncoder(**kwargs)
     return encoder.dump(obj, stm)
 
 
-def dumps(obj):
-    encoder = BSONEncoder()
+def dumps(obj, /, **kwargs):
+    """Write the object out to a bytes array.
+
+    Parameters
+    ----------
+    obj: dict
+        A dictionary object containing the contents to write out.
+
+    NOTE: Any additional keyword arguments are passed to the underlying
+    BSONEncoder constructor.
+
+    Returns
+    -------
+    bytes: The bytes corresponding to the encoded BSON document.
+    """
+    encoder = BSONEncoder(**kwargs)
     return encoder.dumps(obj)
 
 
