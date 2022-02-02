@@ -48,6 +48,7 @@ from collections import deque
 # Local imports.
 import ibson.codec_util as util
 import ibson.errors as errors
+import ibson.types as types
 
 
 def _parse_64bit_float(stm):
@@ -158,6 +159,21 @@ def _parse_utc_datetime(stm):
     return result
 
 
+def _seek_forward(stm, length):
+    if stm.seekable():
+        stm.seek(length, 1)
+        return
+    buffer = bytearray(1024)
+    while length > 1024:
+        bytes_read = stm.readinto(buffer)
+        if not bytes_read:
+            raise EOFError('End of stream reached prematurely!')
+        length -= bytes_read
+    # Read the remaining bytes (which should be less than 1024)
+    if length:
+        stm.read(length)
+
+
 class DecodeEvents(object):
     """Placeholder class for events when decoding a BSON document."""
 
@@ -228,18 +244,10 @@ class DecoderFrame(object):
         return self._data
 
 
-BSON_MIN_OBJECT = object()
-"""Default object that is assumed when decoding the 'min key' BSON field."""
-
-
-BSON_MAX_OBJECT = object()
-"""Default object that is assumed when decoding the 'max key' BSON field."""
-
-
 class BSONScanner(object):
 
-    def __init__(self, min_key_object=BSON_MIN_OBJECT,
-                 max_key_object=BSON_MAX_OBJECT, null_object=None):
+    def __init__(self, min_key_object=types.BSON_MIN_OBJECT,
+                 max_key_object=types.BSON_MAX_OBJECT):
         # By default, initialize the opcode mapping here. Subclasses should
         # register this mapping using the helper call to:
         # - register_opcode(opcode, callback)
@@ -257,20 +265,54 @@ class BSONScanner(object):
             0x08: _parse_bool,
             0x09: _parse_utc_datetime,
             # 0x0A implies 'NULL', so return the configured NULL object.
-            0x0A: lambda args: null_object,
+            0x0A: lambda args: None,
             # 0x0B: _parse_regex,
             # 0x0C: _parse_db_pointer,
             # 0x0D: _parse_js_code,
             # 0x0E: _parse_symbol,
             # 0x0F: _parse_js_code_with_scope,
             0x10: _parse_int32,
-            # 0x11: parse_datetime,
+            0x11: _parse_uint64,
             0x12: _parse_int64,
             # 0x13: _parse_decimal128,
             # Return the min/max objects for these opcodes.
             0x7F: lambda args: max_key_object,
             0xFF: lambda args: min_key_object,
         }
+
+    def scan_document(self, is_array, key, parent_frame, stm):
+        """Scan the stream for the potentially nested document.
+
+        This call should return a DecoderFrame object that is appropriately
+        populated to iterate over the contents of this document; this frame
+        should be added to the parsing stack as appropriate.
+
+        Parameters
+        ----------
+        is_array: bool
+            Indicates whether the frame pertains to a nested document or
+            list/array/tuple.
+        key: str or int
+            The key of the current frame. An empty string ('') implies the
+            root document.
+        parent_frame: DecoderFrame or None
+            The current frame when this call is invoked; this frame should
+            become the parent frame of anything returned by this object for
+            consistency. A parent_frame of None implies the root document.
+        stm: io.RawIOBase
+            Stream to scan for the document. The document should be readable.
+
+        Return
+        ------
+        DecoderFrame: Frame attached to the current key for this document.
+        """
+        length = _parse_int32(stm)
+        fpos = stm.tell() if stm.seekable() else None
+
+        # The root key is the empty key.
+        return DecoderFrame(key, fpos, parent=parent_frame, is_array=is_array,
+                            length=length)
+
 
     def register_opcode(self, opcode, callback):
         """Register a custom callback to parse this opcode.
@@ -292,7 +334,7 @@ class BSONScanner(object):
     def scan_binary(self, stm):
         return _parse_binary(stm)
 
-    def iterdecode(self, stm):
+    def decode_generator(self, stm):
         """Iterate over the given BSON stream and (incrementally) decode it.
 
         This returns a generator that yields tuples of the form:
@@ -315,16 +357,8 @@ class BSONScanner(object):
         searching for a specific key (for example) and can hint to the system
         when it is okay to skip reading.
         """
-        # The stream should be seekable. If it isn't, then it should be wrapped
-        # appropriately using 'io' module utilities.
-        #
-        # Get the current position in the stream.
-        fpos = stm.tell()
-
         # The first field in any BSON document is its length. Fetch that now.
-        length = _parse_int32(stm)
-        # The root key is the empty key.
-        frame = DecoderFrame('', fpos, is_array=False, length=length)
+        frame = self.scan_document(False, '', None, stm)
 
         # Initialize the stack with the root document.
         current_stack = deque()
@@ -356,30 +390,15 @@ class BSONScanner(object):
             # Check the 'nested document' case first.
             client_req = None
             if opcode in [0x03, 0x04]:
-                nested_fpos = stm.tell()
-                # A nested array. Create a new DocumentFrame type and push it
-                # to the current stack.
-                length = _parse_int32(stm)
                 is_array = bool(opcode == 0x04)
-                if is_array:
-                    result = DecodeEvents.NESTED_ARRAY
-                else:
-                    result = DecodeEvents.NESTED_DOCUMENT
-
-                # These given two opcodes imply nested documents. If the caller
-                # responded with a request of "SKIP_KEY", then skip the key and
-                # do not bother parsing any of those frames; instead, seek past
-                # the perceived length of the document.
-                client_req = (yield (key, result, frame))
+                frame = self.scan_document(is_array, key, frame, stm)
+                # Yield the start of the new document, but also check if the
+                # client requested to skip the key.
+                client_req = yield (key, DecodeEvents.NESTED_DOCUMENT, frame)
                 if client_req is DecodeEvents.SKIP_KEY:
-                    # Seek ahead based on the parsed length.
-                    stm.seek(length, 1)
+                    _seek_forward(stm, frame.length)
                 else:
-                    # Create a new frame, with current_frame as the parent.
-                    new_frame = DecoderFrame(
-                        key, nested_fpos, is_array=is_array, parent=frame,
-                        length=length)
-                    current_stack.append(new_frame)
+                    current_stack.append(frame)
                 continue
 
             # Depending on opcode, make the appropriate callback otherwise.
@@ -430,7 +449,7 @@ class BSONDecoder(BSONScanner):
 
         NOTE: The underlying stream should be seekable if possible.
         """
-        generator = self.iterdecode(stm)
+        generator = self.decode_generator(stm)
 
         for key, val, frame in generator:
             if val is DecodeEvents.NESTED_DOCUMENT:

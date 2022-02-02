@@ -158,6 +158,15 @@ class BSONEncoder(object):
         else:
             self._traverse_document_iterator = traversal_callback
 
+    def write_unknown_object(self, key, val, stm):
+        """Write out an object of (unknown) type.
+
+        By default, this simply raises an exception that the type could not be
+        encoded. Callers can register types with custom encodings.
+        """
+        raise errors.BSONEncodeError(
+            "Unrecognized type to encode: {}".format(type(val)))
+
     def dumps(self, obj):
         """Serialize the given object into a BSON byte stream."""
         with io.BytesIO() as stm:
@@ -319,8 +328,7 @@ class BSONEncoder(object):
         elif isinstance(val, (bytes, bytearray, memoryview)):
             self.write_binary(key, val, stm)
         else:
-            raise errors.BSONEncodeError(
-                "Unrecognized type to encode: {}".format(type(val)))
+            self.write_unknown_object(key, val, stm)
 
     def write_int32(self, key, val, stm):
         """Write out an Int32 to the stream with the given key and value."""

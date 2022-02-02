@@ -17,6 +17,14 @@ class MaxKey(object):
     """Default class representing the "Max key" field in BSON."""
 
 
+BSON_MIN_OBJECT = MinKey()
+"""Default object that is assumed when decoding the 'min key' BSON field."""
+
+
+BSON_MAX_OBJECT = MaxKey()
+"""Default object that is assumed when decoding the 'max key' BSON field."""
+
+
 class Int32(int):
     """Type used to force BSON serialization as an Int32.
 
