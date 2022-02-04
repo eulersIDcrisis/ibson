@@ -247,7 +247,8 @@ class DecoderFrame(object):
 class BSONScanner(object):
 
     def __init__(self, min_key_object=types.BSON_MIN_OBJECT,
-                 max_key_object=types.BSON_MAX_OBJECT):
+                 max_key_object=types.BSON_MAX_OBJECT,
+                 use_bson_int_types=False):
         # By default, initialize the opcode mapping here. Subclasses should
         # register this mapping using the helper call to:
         # - register_opcode(opcode, callback)
@@ -264,7 +265,6 @@ class BSONScanner(object):
             # 0x07: _parse_object_id,
             0x08: _parse_bool,
             0x09: _parse_utc_datetime,
-            # 0x0A implies 'NULL', so return the configured NULL object.
             0x0A: lambda args: None,
             # 0x0B: _parse_regex,
             # 0x0C: _parse_db_pointer,
@@ -279,6 +279,14 @@ class BSONScanner(object):
             0x7F: lambda args: max_key_object,
             0xFF: lambda args: min_key_object,
         }
+
+        if use_bson_int_types:
+            self._opcode_mapping[0x10] = lambda args: types.Int32(
+                _parse_int32(args))
+            self._opcode_mapping[0x11] = lambda args: types.UInt64(
+                _parse_uint64(args))
+            self._opcode_mapping[0x12] = lambda args: types.Int64(
+                _parse_int64(args))
 
     def scan_document(self, is_array, key, parent_frame, stm):
         """Scan the stream for the potentially nested document.
@@ -301,6 +309,8 @@ class BSONScanner(object):
             consistency. A parent_frame of None implies the root document.
         stm: io.RawIOBase
             Stream to scan for the document. The document should be readable.
+            In some cases, it helps if the document is seekable, though this
+            is not strictly required for scanning.
 
         Return
         ------
@@ -368,49 +378,55 @@ class BSONScanner(object):
         client_req = yield frame.key, DecodeEvents.NESTED_DOCUMENT, frame
 
         while current_stack:
-            # Peek the current stack frame, which is at the end of the stack.
-            frame = current_stack[-1]
+            key = None
+            try:
+                # Peek the current stack frame.
+                frame = current_stack[-1]
 
-            # A 'frame' consists of:
-            #   <opcode> + <null-terminated key> + <value>
-            opcode = _parse_byte(stm)
+                # A 'frame' consists of:
+                #   <opcode> + <null-terminated key> + <value>
+                opcode = _parse_byte(stm)
 
-            # An 'opcode' of 0x00 implies the end of the current document or
-            # array (meaning there is no null-terminated key), so handle that
-            # case first.
-            if opcode == 0x00:
-                frame = current_stack.pop()
-                client_req = (yield (
-                    frame.key, DecodeEvents.END_DOCUMENT, frame))
-                continue
+                # An 'opcode' of 0x00 implies the end of the current document
+                # or array (meaning there is no null-terminated key), so handle
+                # that case first.
+                if opcode == 0x00:
+                    frame = current_stack.pop()
+                    client_req = (yield (
+                        frame.key, DecodeEvents.END_DOCUMENT, frame))
+                    continue
 
-            # Parse the key for the next element.
-            key = _parse_ename(stm)
+                # Parse the key for the next element.
+                key = _parse_ename(stm)
 
-            # Check the 'nested document' case first.
-            client_req = None
-            if opcode in [0x03, 0x04]:
-                is_array = bool(opcode == 0x04)
-                frame = self.scan_document(is_array, key, frame, stm)
-                # Yield the start of the new document, but also check if the
-                # client requested to skip the key.
-                client_req = yield (key, DecodeEvents.NESTED_DOCUMENT, frame)
-                if client_req is DecodeEvents.SKIP_KEY:
-                    _seek_forward(stm, frame.length)
-                else:
-                    current_stack.append(frame)
-                continue
+                # Check the 'nested document' case first.
+                client_req = None
+                if opcode in [0x03, 0x04]:
+                    is_array = bool(opcode == 0x04)
+                    frame = self.scan_document(is_array, key, frame, stm)
+                    # Yield the start of the new document, but also check if
+                    # the client requested to skip the key.
+                    client_req = yield (
+                        key, DecodeEvents.NESTED_DOCUMENT, frame)
 
-            # Depending on opcode, make the appropriate callback otherwise.
-            result = self.process_opcode(opcode, stm, current_stack)
+                    # Check if it was requested that we skip this key.
+                    if client_req is DecodeEvents.SKIP_KEY:
+                        _seek_forward(stm, frame.length)
+                    else:
+                        current_stack.append(frame)
+                    continue
 
-            # Confusing. Basically, the client can 'signal' a few operations to
-            # this generator by calling the '.send()' method. If no '.send()'
-            # is called and the caller just iterates over the given contents,
-            # then 'client_req' will be 'None'.
-            # If 'client_req' is something other than None, try and process a
-            # few cases.
-            client_req = (yield (key, result, frame))
+                # Depending on opcode, make the appropriate callback otherwise.
+                result = self.process_opcode(opcode, stm, current_stack)
+
+                client_req = (yield (key, result, frame))
+            except Exception as e:
+                # Add as much info as we can about the current state.
+                new_exc = errors.BSONDecodeError(
+                    key, str(e), fpos=stm.tell()
+                )
+                new_exc.update_with_stack(current_stack)
+                raise new_exc from e
 
     def process_opcode(self, opcode, stm, traversal_stk):
         """Process the given opcode and return the appropriate value.

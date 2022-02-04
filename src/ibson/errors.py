@@ -63,11 +63,45 @@ class BSONEncodeError(BSONError):
 class BSONDecodeError(BSONError):
     """Exception raised while decoding the stream."""
 
+    def __init__(self, key, msg, *args, fpos=None):
+        super(BSONDecodeError, self).__init__(msg, *args)
+        self._key = key
+        self._fpos = fpos
+        self._msg = msg
+
+    def update_with_stack(self, stk):
+        tentative_key = '.'.join([
+            frame.key.replace('.', '\\.') for frame in stk
+        ])
+        self._key = '{}.{}'.format(tentative_key, self._key)
+
+    @property
+    def key(self):
+        """Key this error pertains to (could be the empty string)."""
+        return self._key
+
+    @property
+    def fpos(self):
+        """Return the position in the stream that the error pertains to.
+
+        NOTE: This can return None if the error does not pertain to the
+        stream position or if it otherwise could not be extracted.
+        """
+        return self._fpos
+
+    def __str__(self):
+        """Return this exception as a string."""
+        msg = super(BSONDecodeError, self).__str__()
+        if self._fpos is not None:
+            return u'Decode key: {}, fpos: {} -- {}'.format(
+                self.key, self.fpos, msg)
+        return u'Decode key: {} -- {}'.format(self.key, msg)
+
 
 class InvalidBSONOpcode(BSONDecodeError):
     """Exception denoting an invalid BSON opcode."""
 
-    def __init__(self, opcode):
+    def __init__(self, opcode, fpos=None):
         msg = "Invalid opcode encountered: {}".format(opcode)
-        super(InvalidBSONOpcode, self).__init__(msg)
+        super(InvalidBSONOpcode, self).__init__('', msg, fpos=fpos)
         self.opcode = opcode
