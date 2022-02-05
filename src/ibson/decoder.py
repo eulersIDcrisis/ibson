@@ -161,7 +161,7 @@ def _parse_utc_datetime(stm):
 
 def _seek_forward(stm, length):
     if stm.seekable():
-        stm.seek(length, 1)
+        stm.seek(length, io.SEEK_CUR)
         return
     buffer = bytearray(1024)
     while length > 1024:
@@ -199,6 +199,7 @@ class DecodeEvents(object):
 
 
 class DecoderFrame(object):
+    """Frame for scanning oriterating over a nested document/array."""
 
     def __init__(self, key, fpos, parent=None, length=None, is_array=False):
         self._key = key
@@ -206,13 +207,6 @@ class DecoderFrame(object):
         self._parent = parent
         self._length = length
         self._is_array = is_array
-        self._data = list() if is_array else dict()
-
-    def add_item(self, key, value):
-        if self.is_array:
-            self._data.append(value)
-        else:
-            self._data[key] = value
 
     @property
     def key(self):
@@ -238,10 +232,6 @@ class DecoderFrame(object):
     def is_array(self):
         """Return whether the current frame pertains to an array or dict."""
         return self._is_array
-
-    @property
-    def data(self):
-        return self._data
 
 
 class BSONScanner(object):
@@ -402,12 +392,17 @@ class BSONScanner(object):
                 # Check the 'nested document' case first.
                 client_req = None
                 if opcode in [0x03, 0x04]:
-                    is_array = bool(opcode == 0x04)
-                    frame = self.scan_document(is_array, key, frame, stm)
+                    if opcode == 0x04:
+                        # Array type.
+                        frame = self.scan_document(True, key, frame, stm)
+                        val = DecodeEvents.NESTED_ARRAY
+                    else:
+                        frame = self.scan_document(False, key, frame, stm)
+                        val = DecodeEvents.NESTED_DOCUMENT
+
                     # Yield the start of the new document, but also check if
                     # the client requested to skip the key.
-                    client_req = yield (
-                        key, DecodeEvents.NESTED_DOCUMENT, frame)
+                    client_req = yield (key, val, frame)
 
                     # Check if it was requested that we skip this key.
                     if client_req is DecodeEvents.SKIP_KEY:
@@ -465,25 +460,33 @@ class BSONDecoder(BSONScanner):
 
         NOTE: The underlying stream should be seekable if possible.
         """
-        generator = self.decode_generator(stm)
+        # Store the 'stack' of nested documents when parsing the result.
+        item_stk = deque()
 
+        generator = self.decode_generator(stm)
         for key, val, frame in generator:
             if val is DecodeEvents.NESTED_DOCUMENT:
-                frame.ext_data = dict()
+                # Add the element to the current stack.
+                item_stk.append(dict())
                 continue
             elif val is DecodeEvents.NESTED_ARRAY:
-                frame.ext_data = []
+                item_stk.append([])
                 continue
             elif val is DecodeEvents.END_DOCUMENT:
-                if frame.parent:
-                    frame.parent.add_item(frame.key, frame.data)
-                continue
+                # Pop the nested 'document' from the stack, and attach it
+                # back to its parent since we are done parsing it.
+                val = item_stk.pop()
 
-            # Otherwise, add the given data to the current frame.
-            frame.add_item(key, val)
-
-        # This should not happen, but might if there is some problem with an
-        # unwound frame stack.
-        if not frame:
-            raise errors.BSONDecodeError('Invalid end state!')
-        return frame.data
+                # Set the frame for this next step as the parent, since this
+                # case informs us this nested document is done parsing and it
+                # should be appended to its parent (if applicable). For the
+                # root frame, frame.parent == None.
+                frame = frame.parent
+                if not frame:
+                    return val
+            # All other cases, add the value to the current item_stk.
+            if frame.is_array:
+                item_stk[-1].append(val)
+            else:
+                item_stk[-1][key] = val
+        raise Exception('Unexpected error')

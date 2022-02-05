@@ -310,6 +310,8 @@ class BSONEncoder(object):
                 self.write_int32(key, val, stm)
             elif isinstance(val, types.Int64):
                 self.write_int64(key, val, stm)
+            elif isinstance(val, types.UInt64):
+                self.write_uint64(key, val, stm)
             # Handle ordinary integers by casting down to the smallest type
             # that can contain them. If the caller wanted an explicit type,
             # they can use the explicit types given above.
@@ -341,6 +343,12 @@ class BSONEncoder(object):
         stm.write(b'\x12')
         self._write_raw_key(key, stm)
         stm.write(util.INT64_STRUCT.pack(val))
+
+    def write_uint64(self, key, val, stm):
+        """Write out an UInt64 to the stream with the given key and value."""
+        stm.write(b'\x12')
+        self._write_raw_key(key, stm)
+        stm.write(util.UINT64_STRUCT.pack(val))
 
     def write_float(self, key, val, stm):
         """Write out a double to the stream with the given key and value."""
