@@ -62,3 +62,7 @@ INT64_UPPERBOUND = 2 ** 63
 
 UINT32_UPPERBOUND = 2 ** 32 - 1
 """Upperbound for a UInt32 type."""
+
+
+UINT64_UPPERBOUND = 2 ** 64 - 1
+"""Upperbound for a UInt64 type."""

@@ -158,6 +158,15 @@ class BSONEncoder(object):
         else:
             self._traverse_document_iterator = traversal_callback
 
+    def write_unknown_object(self, key, val, stm):
+        """Write out an object of (unknown) type.
+
+        By default, this simply raises an exception that the type could not be
+        encoded. Callers can register types with custom encodings.
+        """
+        raise errors.BSONEncodeError(
+            "Unrecognized type to encode: {}".format(type(val)))
+
     def dumps(self, obj):
         """Serialize the given object into a BSON byte stream."""
         with io.BytesIO() as stm:
@@ -301,6 +310,8 @@ class BSONEncoder(object):
                 self.write_int32(key, val, stm)
             elif isinstance(val, types.Int64):
                 self.write_int64(key, val, stm)
+            elif isinstance(val, types.UInt64):
+                self.write_uint64(key, val, stm)
             # Handle ordinary integers by casting down to the smallest type
             # that can contain them. If the caller wanted an explicit type,
             # they can use the explicit types given above.
@@ -319,8 +330,7 @@ class BSONEncoder(object):
         elif isinstance(val, (bytes, bytearray, memoryview)):
             self.write_binary(key, val, stm)
         else:
-            raise errors.BSONEncodeError(
-                "Unrecognized type to encode: {}".format(type(val)))
+            self.write_unknown_object(key, val, stm)
 
     def write_int32(self, key, val, stm):
         """Write out an Int32 to the stream with the given key and value."""
@@ -333,6 +343,12 @@ class BSONEncoder(object):
         stm.write(b'\x12')
         self._write_raw_key(key, stm)
         stm.write(util.INT64_STRUCT.pack(val))
+
+    def write_uint64(self, key, val, stm):
+        """Write out an UInt64 to the stream with the given key and value."""
+        stm.write(b'\x12')
+        self._write_raw_key(key, stm)
+        stm.write(util.UINT64_STRUCT.pack(val))
 
     def write_float(self, key, val, stm):
         """Write out a double to the stream with the given key and value."""

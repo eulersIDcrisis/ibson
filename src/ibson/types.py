@@ -5,7 +5,7 @@ Custom Types for BSON.
 from ibson.codec_util import (
     INT32_UPPERBOUND, INT32_LOWERBOUND,
     INT64_UPPERBOUND, INT64_LOWERBOUND,
-    UINT32_UPPERBOUND,
+    UINT64_UPPERBOUND,
 )
 
 
@@ -15,6 +15,14 @@ class MinKey(object):
 
 class MaxKey(object):
     """Default class representing the "Max key" field in BSON."""
+
+
+BSON_MIN_OBJECT = MinKey()
+"""Default object that is assumed when decoding the 'min key' BSON field."""
+
+
+BSON_MAX_OBJECT = MaxKey()
+"""Default object that is assumed when decoding the 'max key' BSON field."""
 
 
 class Int32(int):
@@ -45,7 +53,7 @@ class Int64(int):
 
     def __new__(cls, *args, **kwargs):
         """Override 'new' operation since ints are immutable types."""
-        val = super(Int32, cls).__new__(cls, *args, **kwargs)
+        val = super(Int64, cls).__new__(cls, *args, **kwargs)
         if val < INT64_LOWERBOUND:
             raise TypeError(
                 "Int32 cannot store values less than {}! Value: {}".format(
@@ -57,7 +65,7 @@ class Int64(int):
         return val
 
 
-class UInt32(int):
+class UInt64(int):
     """Type used to force BSON serialization as a UInt32.
 
     This type should work interchangeably as an int for other operations.
@@ -65,12 +73,12 @@ class UInt32(int):
 
     def __new__(cls, *args, **kwargs):
         """Override 'new' operation since ints are immutable types."""
-        val = super(UInt32, cls).__new__(cls, *args, **kwargs)
+        val = super(UInt64, cls).__new__(cls, *args, **kwargs)
         if val < 0:
             raise TypeError(
                 "UInt32 values cannot be negative! Value given: {}".format(val))
-        if val > UINT32_UPPERBOUND:
+        if val > UINT64_UPPERBOUND:
             raise TypeError(
                 "UInt32 cannot store values larger than {}! Value: {}".format(
-                    UINT32_UPPERBOUND, val))
+                    UINT64_UPPERBOUND, val))
         return val
