@@ -489,4 +489,5 @@ class BSONDecoder(BSONScanner):
                 item_stk[-1].append(val)
             else:
                 item_stk[-1][key] = val
-        raise Exception('Unexpected error')
+
+        raise BSONDecodeError('', "EOF: Incomplete BSON document!")
