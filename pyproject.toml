@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "ibson"
+version = "0.0.3"
+description = "BSON parsing library and tool."
+authors = ["Aaron Gibson <eulersidcrisis@yahoo.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/eulersIDcrisis/ibson"
+repository = "https://github.com/eulersIDcrisis/ibson"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+]
+
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/eulersIDcrisis/ibson/issues"
+
+[tool.poetry.dependencies]
+python = ">=3.7,<4"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
