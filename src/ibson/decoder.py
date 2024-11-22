@@ -177,6 +177,12 @@ def _seek_forward(stm, length):
 class DecodeEvents(object):
     """Placeholder class for events when decoding a BSON document."""
 
+    END_DOCUMENT = object()
+    """Event that denotes the end of a nested document or array."""
+
+    SKIP_KEY = object()
+    """Event that denotes to skip the current key."""
+
     NESTED_DOCUMENT = object()
     """Event that denotes the start of a nested document with the given key.
 
@@ -190,12 +196,6 @@ class DecodeEvents(object):
     NOTE: The end of this nested document if flagged by an 'END_DOCUMENT'
     event.
     """
-
-    END_DOCUMENT = object()
-    """Event that denotes the end of a nested document or array."""
-
-    SKIP_KEY = object()
-    """Event that denotes to skip the current key."""
 
 
 class DecoderFrame(object):
@@ -450,12 +450,20 @@ class BSONDecoder(BSONScanner):
     which should parse out custom opcode types.
     """
 
-    def loads(self, data):
-        """Load the BSON document from the given bytes-like object."""
-        with io.BytesIO(data) as stm:
-            return self.load(stm)
+    def __init__(self, stm_or_buffer, **kwargs):
+        super().__init__(**kwargs)
+        if isinstance(stm_or_buffer, (str, bytes, bytearray)):
+            self._stm = io.BytesIO(stm_or_buffer)
+            self._close_on_exit = True
+        else:
+            self._stm = stm_or_buffer
+            self._close_on_exit = False
 
-    def load(self, stm):
+    def close(self):
+        if self._close_on_exit:
+            self._stm.close()
+
+    def decode(self):
         """Load the BSON document from the given (bytes-like) stream.
 
         NOTE: The underlying stream should be seekable if possible.
@@ -463,7 +471,7 @@ class BSONDecoder(BSONScanner):
         # Store the 'stack' of nested documents when parsing the result.
         item_stk = deque()
 
-        generator = self.decode_generator(stm)
+        generator = self.decode_generator(self._stm)
         for key, val, frame in generator:
             if val is DecodeEvents.NESTED_DOCUMENT:
                 # Add the element to the current stack.
@@ -490,4 +498,4 @@ class BSONDecoder(BSONScanner):
             else:
                 item_stk[-1][key] = val
 
-        raise BSONDecodeError('', "EOF: Incomplete BSON document!")
+        raise errors.BSONDecodeError('', "EOF: Incomplete BSON document!")

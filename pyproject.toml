@@ -1,12 +1,17 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "ibson"
-version = "0.0.3"
+version = "0.0.4"
+authors = [
+    { name = "Aaron Gibson", email = "eulersidcrisis@yahoo.com"},
+]
+requires-python = ">=3.8"
 description = "BSON parsing library and tool."
-authors = ["Aaron Gibson <eulersidcrisis@yahoo.com>"]
-license = "Apache-2.0"
 readme = "README.md"
-homepage = "https://github.com/eulersIDcrisis/ibson"
-repository = "https://github.com/eulersIDcrisis/ibson"
+license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
@@ -14,16 +19,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 
-
-[tool.poetry.urls]
-"Bug Tracker" = "https://github.com/eulersIDcrisis/ibson/issues"
-
-[tool.poetry.dependencies]
-python = ">=3.7,<4"
-
-[tool.poetry.dev-dependencies]
-pytest = "^7.1.1"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[project.urls]
+Homepage = "https://github.com/eulersIDcrisis/ibson"
+Repository = "https://github.com/eulersIDcrisis/ibson"
+Issues = "https://github.com/eulersIDcrisis/ibson/issues"

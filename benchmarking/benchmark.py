@@ -3,14 +3,23 @@
 
 File to benchmark python BSON-parsing libraries.
 """
+import os
 import argparse
 import cProfile
 import bson
 import ibson
 
 
+def get_test_file_path():
+    return os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "test.bson"
+    )
+
+
 def run_load_bytes_bson_test():
-    with open("test.bson", "rb") as stm:
+    path = get_test_file_path()
+    with open(path, "rb") as stm:
         data = stm.read()
     # Start the test here.
     with cProfile.Profile() as pr:
@@ -19,7 +28,8 @@ def run_load_bytes_bson_test():
 
 
 def run_load_bytes_ibson_test():
-    with open("test.bson", "rb") as stm:
+    path = get_test_file_path()
+    with open(path, "rb") as stm:
         data = stm.read()
     # Start the test here.
     with cProfile.Profile() as pr:

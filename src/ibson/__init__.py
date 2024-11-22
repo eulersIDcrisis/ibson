@@ -50,11 +50,21 @@ def dumps(obj, /, **kwargs):
     return encoder.dumps(obj)
 
 
-def load(stm, /, **kwargs):
-    decoder = BSONDecoder(**kwargs)
-    return decoder.load(stm)
+def load(stm, /, cls=BSONDecoder, **kwargs):
+    decoder = None
+    try:
+        decoder = cls(stm, **kwargs)
+        return decoder.decode()
+    finally:
+        if decoder:
+            decoder.close()
 
 
-def loads(data, **kwargs):
-    decoder = BSONDecoder(**kwargs)
-    return decoder.loads(data)
+def loads(data, cls=BSONDecoder, **kwargs):
+    decoder = None
+    try:
+        decoder = cls(data, **kwargs)
+        return decoder.decode()
+    finally:
+        if decoder:
+            decoder.close()
