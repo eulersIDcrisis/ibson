@@ -328,7 +328,7 @@ class BSONEncoder(object):
         elif isinstance(val, uuid.UUID):
             self.write_uuid(key, val, stm)
         elif isinstance(val, (bytes, bytearray, memoryview)):
-            self.write_binary(key, val, stm)
+            self.write_bytes(key, val, stm)
         else:
             self.write_unknown_object(key, val, stm)
 
