@@ -2,9 +2,12 @@
 
 Custom Types for BSON.
 """
+
 from ibson.codec_util import (
-    INT32_UPPERBOUND, INT32_LOWERBOUND,
-    INT64_UPPERBOUND, INT64_LOWERBOUND,
+    INT32_UPPERBOUND,
+    INT32_LOWERBOUND,
+    INT64_UPPERBOUND,
+    INT64_LOWERBOUND,
     UINT64_UPPERBOUND,
 )
 
@@ -37,11 +40,15 @@ class Int32(int):
         if val < INT32_LOWERBOUND:
             raise TypeError(
                 "Int32 cannot store values less than {}! Value: {}".format(
-                    INT32_LOWERBOUND, val))
+                    INT32_LOWERBOUND, val
+                )
+            )
         if val > INT32_UPPERBOUND:
             raise TypeError(
                 "Int32 cannot store values larger than {}! Value: {}".format(
-                    INT32_UPPERBOUND, val))
+                    INT32_UPPERBOUND, val
+                )
+            )
         return val
 
 
@@ -57,11 +64,15 @@ class Int64(int):
         if val < INT64_LOWERBOUND:
             raise TypeError(
                 "Int32 cannot store values less than {}! Value: {}".format(
-                    INT64_LOWERBOUND, val))
+                    INT64_LOWERBOUND, val
+                )
+            )
         if val > INT64_UPPERBOUND:
             raise TypeError(
                 "Int32 cannot store values larger than {}! Value: {}".format(
-                    INT64_UPPERBOUND, val))
+                    INT64_UPPERBOUND, val
+                )
+            )
         return val
 
 
@@ -76,9 +87,12 @@ class UInt64(int):
         val = super(UInt64, cls).__new__(cls, *args, **kwargs)
         if val < 0:
             raise TypeError(
-                "UInt32 values cannot be negative! Value given: {}".format(val))
+                "UInt32 values cannot be negative! Value given: {}".format(val)
+            )
         if val > UINT64_UPPERBOUND:
             raise TypeError(
                 "UInt32 cannot store values larger than {}! Value: {}".format(
-                    UINT64_UPPERBOUND, val))
+                    UINT64_UPPERBOUND, val
+                )
+            )
         return val

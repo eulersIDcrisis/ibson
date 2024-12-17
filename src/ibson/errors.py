@@ -32,10 +32,8 @@ class BSONEncodeError(BSONError):
         self._msg = msg
 
     def update_with_stack(self, stk):
-        tentative_key = '.'.join([
-            frame.key.replace('.', '\\.') for frame in stk
-        ])
-        self._key = '{}.{}'.format(tentative_key, self._key)
+        tentative_key = ".".join([frame.key.replace(".", "\\.") for frame in stk])
+        self._key = "{}.{}".format(tentative_key, self._key)
 
     @property
     def key(self):
@@ -55,9 +53,8 @@ class BSONEncodeError(BSONError):
         """Return this exception as a string."""
         msg = super(BSONEncodeError, self).__str__()
         if self._fpos is not None:
-            return u'Encode key: {}, fpos: {} -- {}'.format(
-                self.key, self.fpos, msg)
-        return u'Encode key: {} -- {}'.format(self.key, msg)
+            return "Encode key: {}, fpos: {} -- {}".format(self.key, self.fpos, msg)
+        return "Encode key: {} -- {}".format(self.key, msg)
 
 
 class BSONDecodeError(BSONError):
@@ -70,10 +67,8 @@ class BSONDecodeError(BSONError):
         self._msg = msg
 
     def update_with_stack(self, stk):
-        tentative_key = '.'.join([
-            frame.key.replace('.', '\\.') for frame in stk
-        ])
-        self._key = '{}.{}'.format(tentative_key, self._key)
+        tentative_key = ".".join([frame.key.replace(".", "\\.") for frame in stk])
+        self._key = "{}.{}".format(tentative_key, self._key)
 
     @property
     def key(self):
@@ -93,9 +88,8 @@ class BSONDecodeError(BSONError):
         """Return this exception as a string."""
         msg = super(BSONDecodeError, self).__str__()
         if self._fpos is not None:
-            return u'Decode key: {}, fpos: {} -- {}'.format(
-                self.key, self.fpos, msg)
-        return u'Decode key: {} -- {}'.format(self.key, msg)
+            return "Decode key: {}, fpos: {} -- {}".format(self.key, self.fpos, msg)
+        return "Decode key: {} -- {}".format(self.key, msg)
 
 
 class InvalidBSONOpcode(BSONDecodeError):
@@ -103,5 +97,5 @@ class InvalidBSONOpcode(BSONDecodeError):
 
     def __init__(self, opcode, fpos=None):
         msg = "Invalid opcode encountered: {}".format(opcode)
-        super(InvalidBSONOpcode, self).__init__('', msg, fpos=fpos)
+        super(InvalidBSONOpcode, self).__init__("", msg, fpos=fpos)
         self.opcode = opcode
