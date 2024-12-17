@@ -93,7 +93,7 @@ def _parse_ename(stm, decode=True):
     while True:
         # Peek the data, but do not (yet) consume it.
         raw_data = stm.read(1)
-        if raw_data == b'\x00':
+        if raw_data == b"\x00":
             break
         data.extend(raw_data)
 
@@ -103,7 +103,7 @@ def _parse_ename(stm, decode=True):
     # which we can now encode as a string (if requested).
     if decode:
         try:
-            return data.decode('utf-8')
+            return data.decode("utf-8")
         except Exception:
             pass
     return data
@@ -119,7 +119,7 @@ def _parse_utf8_string(stm):
     assert data[length - 1] == 0, "Last byte not the null-terminator!"
 
     # Decode this data as UTF-8.
-    return data[:-1].decode('utf-8')
+    return data[:-1].decode("utf-8")
 
 
 def _parse_bool(stm):
@@ -154,8 +154,7 @@ def _parse_null(stm):
 def _parse_utc_datetime(stm):
     buff = stm.read(util.INT64_STRUCT.size)
     utc_ms = util.INT64_STRUCT.unpack(buff)[0]
-    result = datetime.datetime.fromtimestamp(
-        utc_ms / 1000.0, tz=datetime.timezone.utc)
+    result = datetime.datetime.fromtimestamp(utc_ms / 1000.0, tz=datetime.timezone.utc)
     return result
 
 
@@ -167,7 +166,7 @@ def _seek_forward(stm, length):
     while length > 1024:
         bytes_read = stm.readinto(buffer)
         if not bytes_read:
-            raise EOFError('End of stream reached prematurely!')
+            raise EOFError("End of stream reached prematurely!")
         length -= bytes_read
     # Read the remaining bytes (which should be less than 1024)
     if length:
@@ -236,9 +235,12 @@ class DecoderFrame(object):
 
 class BSONScanner(object):
 
-    def __init__(self, min_key_object=types.BSON_MIN_OBJECT,
-                 max_key_object=types.BSON_MAX_OBJECT,
-                 use_bson_int_types=False):
+    def __init__(
+        self,
+        min_key_object=types.BSON_MIN_OBJECT,
+        max_key_object=types.BSON_MAX_OBJECT,
+        use_bson_int_types=False,
+    ):
         # By default, initialize the opcode mapping here. Subclasses should
         # register this mapping using the helper call to:
         # - register_opcode(opcode, callback)
@@ -271,12 +273,9 @@ class BSONScanner(object):
         }
 
         if use_bson_int_types:
-            self._opcode_mapping[0x10] = lambda args: types.Int32(
-                _parse_int32(args))
-            self._opcode_mapping[0x11] = lambda args: types.UInt64(
-                _parse_uint64(args))
-            self._opcode_mapping[0x12] = lambda args: types.Int64(
-                _parse_int64(args))
+            self._opcode_mapping[0x10] = lambda args: types.Int32(_parse_int32(args))
+            self._opcode_mapping[0x11] = lambda args: types.UInt64(_parse_uint64(args))
+            self._opcode_mapping[0x12] = lambda args: types.Int64(_parse_int64(args))
 
     def scan_document(self, is_array, key, parent_frame, stm):
         """Scan the stream for the potentially nested document.
@@ -310,9 +309,9 @@ class BSONScanner(object):
         fpos = stm.tell() if stm.seekable() else None
 
         # The root key is the empty key.
-        return DecoderFrame(key, fpos, parent=parent_frame, is_array=is_array,
-                            length=length)
-
+        return DecoderFrame(
+            key, fpos, parent=parent_frame, is_array=is_array, length=length
+        )
 
     def register_opcode(self, opcode, callback):
         """Register a custom callback to parse this opcode.
@@ -327,8 +326,7 @@ class BSONScanner(object):
         self._opcode_mapping[opcode] = callback
 
     def register_binary_subtype(self, subtype, callback):
-        """Register a custom callback to parse a custom binary type.
-        """
+        """Register a custom callback to parse a custom binary type."""
         pass
 
     def scan_binary(self, stm):
@@ -358,7 +356,7 @@ class BSONScanner(object):
         when it is okay to skip reading.
         """
         # The first field in any BSON document is its length. Fetch that now.
-        frame = self.scan_document(False, '', None, stm)
+        frame = self.scan_document(False, "", None, stm)
 
         # Initialize the stack with the root document.
         current_stack = deque()
@@ -382,8 +380,7 @@ class BSONScanner(object):
                 # that case first.
                 if opcode == 0x00:
                     frame = current_stack.pop()
-                    client_req = (yield (
-                        frame.key, DecodeEvents.END_DOCUMENT, frame))
+                    client_req = yield (frame.key, DecodeEvents.END_DOCUMENT, frame)
                     continue
 
                 # Parse the key for the next element.
@@ -414,12 +411,10 @@ class BSONScanner(object):
                 # Depending on opcode, make the appropriate callback otherwise.
                 result = self.process_opcode(opcode, stm, current_stack)
 
-                client_req = (yield (key, result, frame))
+                client_req = yield (key, result, frame)
             except Exception as e:
                 # Add as much info as we can about the current state.
-                new_exc = errors.BSONDecodeError(
-                    key, str(e), fpos=stm.tell()
-                )
+                new_exc = errors.BSONDecodeError(key, str(e), fpos=stm.tell())
                 new_exc.update_with_stack(current_stack)
                 raise new_exc from e
 
@@ -498,4 +493,4 @@ class BSONDecoder(BSONScanner):
             else:
                 item_stk[-1][key] = val
 
-        raise errors.BSONDecodeError('', "EOF: Incomplete BSON document!")
+        raise errors.BSONDecodeError("", "EOF: Incomplete BSON document!")

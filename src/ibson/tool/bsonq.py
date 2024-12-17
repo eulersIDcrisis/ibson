@@ -24,10 +24,11 @@ import argparse
 
 def run():
     parser = argparse.ArgumentParser(
-        description="Tool to print and query BSON documents.")
+        description="Tool to print and query BSON documents."
+    )
 
     parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

@@ -24,6 +24,7 @@ from functools import partial
 from collections import deque
 import collections.abc as abc
 from operator import itemgetter
+
 # Local imports.
 import ibson.codec_util as util
 import ibson.errors as errors
@@ -37,7 +38,7 @@ def _format_key(key):
     if not isinstance(key, str):
         key = str(key)
     # Encode the string into UTF-8 or ASCII.
-    return key.encode('utf-8')
+    return key.encode("utf-8")
 
 
 class EncoderFrame(object):
@@ -107,7 +108,7 @@ class EncoderFrame(object):
         NOTE: The callbacks are executed in the order that they are added.
         """
         if not callable(cb):
-            raise TypeError('Cannot add non-callable type: {}'.format(cb))
+            raise TypeError("Cannot add non-callable type: {}".format(cb))
         self._on_done_callbacks.append(cb)
 
 
@@ -115,7 +116,7 @@ def _write_length_for_frame(stm, frame):
     # First, write the null-terminator for this frame. (Both document/dicts
     # and array/list types end with a \x00 character after the main contents
     # have been written.)
-    stm.write(b'\x00')
+    stm.write(b"\x00")
     curr_pos = stm.tell()
     try:
         length = curr_pos - frame.starting_fpos
@@ -148,7 +149,7 @@ class BSONEncoder(object):
         traversal_callback: (dict) -> Iterator[Any, Any] or None
             Callback to invoke on a 'document' (dict type). Useful to set the
             order that the items are serialized (if desired). If 'None', then
-            the encoder uses the equivalent of: 
+            the encoder uses the equivalent of:
                 lambda val: iter(val.items())
         """
         if traversal_callback is None:
@@ -165,7 +166,8 @@ class BSONEncoder(object):
         encoded. Callers can register types with custom encodings.
         """
         raise errors.BSONEncodeError(
-            "Unrecognized type to encode: {}".format(type(val)))
+            "Unrecognized type to encode: {}".format(type(val))
+        )
 
     def dumps(self, obj):
         """Serialize the given object into a BSON byte stream."""
@@ -177,12 +179,12 @@ class BSONEncoder(object):
         """Serialize the given object into a BSON file."""
         # First, assert that the object is a python dictionary.
         if not isinstance(obj, abc.Mapping):
-            raise errors.BSONEncodeError('Root object must be a dict!')
+            raise errors.BSONEncodeError("Root object must be a dict!")
 
         length_fields = []
 
         # Create the initial frame.
-        initial_frame = self.write_document('', obj, None, stm, is_array=False)
+        initial_frame = self.write_document("", obj, None, stm, is_array=False)
         # Add the length callback to actually write the correct length.
         initial_frame.add_done_callback(
             # The 'frame' argument is passed during the callback.
@@ -198,7 +200,8 @@ class BSONEncoder(object):
                     # This implies a nested document. Call 'write_document' to
                     # handle the stack appropriately, then continue.
                     new_frame = self.write_document(
-                        key, val, frame, stm, is_array=is_array)
+                        key, val, frame, stm, is_array=is_array
+                    )
 
                     # For the new frame, register a callback to write over the
                     # proper length once the document is written (and thus the
@@ -220,8 +223,7 @@ class BSONEncoder(object):
                 raise e
             except Exception as exc:
                 # Reraise the exception, but with some context about it.
-                new_exc = errors.BSONEncodeError(
-                    key, str(exc), fpos=stm.tell())
+                new_exc = errors.BSONEncodeError(key, str(exc), fpos=stm.tell())
                 new_exc.update_with_stack(current_stack)
                 raise new_exc from exc
 
@@ -258,9 +260,9 @@ class BSONEncoder(object):
         # opcode and the raw key, for otherwise the same operation.
         if key or current_frame is not None:
             if is_array:
-                stm.write(b'\x04')
+                stm.write(b"\x04")
             else:
-                stm.write(b'\x03')
+                stm.write(b"\x03")
             self._write_raw_key(key, stm)
 
         if is_array:
@@ -281,12 +283,12 @@ class BSONEncoder(object):
             parent=current_frame,
             # The external data attached to this frame should be the iterator
             # over the elements of this current document.
-            object_iterator=obj_itr
+            object_iterator=obj_itr,
         )
 
         # When the frame is done, write out the null-terminator for both
         # documents and arrays.
-        frame.add_done_callback(lambda frame: stm.write(b'\x00'))
+        frame.add_done_callback(lambda frame: stm.write(b"\x00"))
 
         # Write out an initial 'length' of this document as 0. This field will
         # need to be updated later once the actual length is known.
@@ -294,7 +296,6 @@ class BSONEncoder(object):
 
         # Return the newly generated frame.
         return frame
-
 
     def write_value(self, key, val, current_stack, stm):
         # NOTE: The order of these checks does matter since some types can be
@@ -328,75 +329,75 @@ class BSONEncoder(object):
         elif isinstance(val, uuid.UUID):
             self.write_uuid(key, val, stm)
         elif isinstance(val, (bytes, bytearray, memoryview)):
-            self.write_binary(key, val, stm)
+            self.write_bytes(key, val, stm)
         else:
             self.write_unknown_object(key, val, stm)
 
     def write_int32(self, key, val, stm):
         """Write out an Int32 to the stream with the given key and value."""
-        stm.write(b'\x10')
+        stm.write(b"\x10")
         self._write_raw_key(key, stm)
         stm.write(util.INT32_STRUCT.pack(val))
 
     def write_int64(self, key, val, stm):
         """Write out an Int64 to the stream with the given key and value."""
-        stm.write(b'\x12')
+        stm.write(b"\x12")
         self._write_raw_key(key, stm)
         stm.write(util.INT64_STRUCT.pack(val))
 
     def write_uint64(self, key, val, stm):
         """Write out an UInt64 to the stream with the given key and value."""
-        stm.write(b'\x12')
+        stm.write(b"\x12")
         self._write_raw_key(key, stm)
         stm.write(util.UINT64_STRUCT.pack(val))
 
     def write_float(self, key, val, stm):
         """Write out a double to the stream with the given key and value."""
-        stm.write(b'\x01')
+        stm.write(b"\x01")
         self._write_raw_key(key, stm)
         stm.write(util.DOUBLE_STRUCT.pack(val))
 
     def write_bool(self, key, val, stm):
         """Write out a boolean to the stream with the given key and value."""
-        stm.write(b'\x08')
+        stm.write(b"\x08")
         self._write_raw_key(key, stm)
-        stm.write(b'\x01' if val else b'\x00')
+        stm.write(b"\x01" if val else b"\x00")
 
     def write_null(self, key, stm):
         """Write out NULL (None) to the stream with the given key."""
-        stm.write(b'\x0A')
+        stm.write(b"\x0A")
         self._write_raw_key(key, stm)
 
     def write_min_key(self, key, stm):
         """Write out the 'min key' to the stream."""
-        stm.write(b'\xFF')
+        stm.write(b"\xFF")
         self._write_raw_key(key, stm)
 
     def write_max_key(self, key, stm):
         """Write out the 'max key' to the stream."""
-        stm.write(b'\x7F')
+        stm.write(b"\x7F")
         self._write_raw_key(key, stm)
 
     def write_datetime(self, key, dt, stm):
         """Write out a datetime to the stream with the given key and value."""
-        stm.write(b'\x09')
+        stm.write(b"\x09")
         self._write_raw_key(key, stm)
         utc_ts = int(1000 * dt.timestamp())
         stm.write(util.INT64_STRUCT.pack(utc_ts))
 
     def write_string(self, key, val, stm):
         """Write out a (UTF-8) string to the stream with the given key."""
-        stm.write(b'\x02')
+        stm.write(b"\x02")
         self._write_raw_key(key, stm)
         # This should only really be called with 'str' types, but we'll
         # be generous for now.
-        raw_str = val.encode('utf-8') if isinstance(val, str) else val
+        raw_str = val.encode("utf-8") if isinstance(val, str) else val
         # NOTE: The length is in bytes _not_ UTF-8 characters.
         length = len(raw_str) + 1  # Add one for the \x00 at the end.
         stm.write(util.INT32_STRUCT.pack(length))
         stm.write(raw_str)
         # Write the null-terminator character.
-        stm.write(b'\x00')
+        stm.write(b"\x00")
 
     def write_uuid(self, key, val, stm):
         """Write out a UUID to the stream with the given key and value."""
@@ -410,7 +411,7 @@ class BSONEncoder(object):
         which type of binary stream this is. If not specified, this defaults
         to 0, the default/generic subtype.
         """
-        stm.write(b'\x05')
+        stm.write(b"\x05")
         self._write_raw_key(key, stm)
         stm.write(util.INT32_STRUCT.pack(len(val)))
         stm.write(util.BYTE_STRUCT.pack(subtype))
@@ -420,20 +421,20 @@ class BSONEncoder(object):
         # If the given key is already a 'bytes/bytearray' type, write it out.
         if isinstance(key, (bytes, bytearray, memoryview)):
             stm.write(key)
-            stm.write(b'\x00')
+            stm.write(b"\x00")
             return
         if isinstance(key, int):
             key = str(key)
         elif not isinstance(key, str):
             raise errors.BSONEncodeError(
-                "Cannot encode invalid 'key' (type: {}): {}".format(
-                    type(key), key))
+                "Cannot encode invalid 'key' (type: {}): {}".format(type(key), key)
+            )
         # Write out the key as a string (encoded via UTF-8 per the spec).
-        stm.write(key.encode('utf-8'))
+        stm.write(key.encode("utf-8"))
 
         # Write the null-terminator character after the key, as mandated by
         # the BSON specification.
-        stm.write(b'\x00')
+        stm.write(b"\x00")
 
     def _encode_generator(self, initial_frame):
         """Yield the document frames, starting with the given initial frame.
