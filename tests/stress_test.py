@@ -20,6 +20,7 @@ Tests that stress corner-cases of the bson parser.
 """
 import unittest
 import random
+
 # Module under test
 import ibson
 
@@ -37,7 +38,7 @@ class DeeplyNestedDocumentTests(unittest.TestCase):
             nested = nested[key]
         # Let's add some high-level keys on the highest level doc for good
         # measure.
-        main['test'] = 'passed?'
+        main["test"] = "passed?"
         # This object is _deeply_ nested so that even trying to print it can
         # potentially cause recursion errors. However, this should not be a
         # problem for ibson, which tracks this "recursion" separate from the
@@ -57,8 +58,8 @@ class DeeplyNestedDocumentTests(unittest.TestCase):
             actual = actual[key]
             nested = nested[key]
 
-        self.assertEqual(main['test'], parsed_obj['test'])
+        self.assertEqual(main["test"], parsed_obj["test"])
 
 
-if __name__ == '__main__':
-	unittest.main()
+if __name__ == "__main__":
+    unittest.main()
